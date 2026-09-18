@@ -1,42 +1,52 @@
-# Contributing
+# Contributing to the Flanj SDK for Python
 
-Thanks for helping. This repository is public and Apache-2.0.
+Thanks for your interest in contributing. This repository is licensed under Apache-2.0.
 
 ## Developer Certificate of Origin (DCO)
 
-Every commit must be signed off:
+All contributions to this repository must be signed off under the
+[Developer Certificate of Origin](https://developercertificate.org/). This certifies that you wrote or
+otherwise have the right to submit the code you are contributing.
 
-```bash
-git commit -s -m "your message"
+Sign off every commit by adding a `Signed-off-by` trailer with your real name and email:
+
+```
+Signed-off-by: Jane Doe <jane@example.com>
 ```
 
-That adds a `Signed-off-by:` line certifying you wrote the patch or have the right to submit
-it under the project's licence — see [developercertificate.org](https://developercertificate.org/).
-CI enforces it on every non-merge commit.
+The easiest way is `git commit -s`. PRs with unsigned commits will not be merged; CI enforces the DCO check.
 
-## Before you open a PR
+## Ground rules
 
-```bash
-uv venv --python 3.10 && uv pip install -e ".[dev]"
-pytest
-ruff check . && mypy
-```
+- Keep this package Apache-2.0 throughout; legal and compliance teams at regulated organizations inspect
+  it. Do not add code under copyleft or source-available licenses, and do not depend on packages that are
+  not Apache, MIT, BSD, ISC or PSF.
+- **Redaction is the security bar.** Capture is out of band and redaction runs at the source, in the
+  user's process. Any change touching capture or redaction must keep both redaction suites green
+  (`contracts/redaction-vectors.json` and `contracts/redaction-fixtures.json`) and must never let a raw
+  body reach an attribute, the store, or the wire before redaction.
+- **Never hand-roll regex detection in the floor.** Our code only *locates* candidates; every decision
+  to redact is made by a validator. That rule is what keeps three languages in agreement. See
+  [REDACTION.md](REDACTION.md).
+- **The floor does no I/O** — and "no I/O" includes the import graph. Check what a new dependency
+  imports at module scope, not just what it calls.
+- Follow the contract in `contracts/` (vendored from the canonical source; do not hand-edit it).
+  Wire-format and redaction changes go through the contract first, not here.
+- **Defaults match the TypeScript SDK.** A genuinely Python-specific difference is documented in the
+  contract, never introduced as a one-line default.
 
-## Two things to know before changing anything
+## Workflow
 
-**`contracts/` is vendored — do not hand-edit it.** Those files are byte-identical copies of
-a contract shared with the Flanj collector and the TypeScript SDK. Changing redaction
-behaviour or the wire format means changing the canonical contract first and re-vendoring to
-every implementation, so all the suites stay green together. A local edit here makes this
-SDK disagree with the collector, silently.
+1. Branch, write tests first (lead with redaction), implement. A test that guards a defect is proved
+   red against that defect before it is kept.
+2. Run the gate:
 
-**Never hand-roll regex detection in the redaction floor.** Our code only *locates*
-candidates structurally; every decision to redact is made by a validator. This is the rule
-that keeps three languages in agreement, and it is why the floor over-redacts a rare
-Luhn-colliding identifier rather than under-redacting a card. See [REDACTION.md](REDACTION.md).
+   ```bash
+   uv venv --python 3.10 && uv pip install -e ".[dev]"
+   pytest
+   ruff check . && mypy
+   bash scripts/smoke-pack.sh
+   ```
 
-## Tests
-
-A fix without a regression test is not finished. If you are adding a test that guards a
-defect, **prove it red first** against the defect, then green with the fix — a guard that has
-never failed is not known to work.
+3. `git commit -s`, open a PR. CI runs the tests on the floor and the latest Python, lint, types, the
+   stranger smoke on the built wheel, and the DCO check.

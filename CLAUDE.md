@@ -62,6 +62,10 @@ src/flanj/
     scalar.py, text_path.py, redactor.py, enhancer.py, props.py, base64_scan.py, ...
 contracts/                 # vendored from the canonical e2e/contracts (do not hand-edit)
 scripts/smoke-pack.sh      # a stranger's first run: build -> fresh venv -> real MCP server
+docs/CONCEPTS.md           # the public engineering overview (mirrors flanj-io/sdk's)
+src/flanj/mcp/CLAUDE.md    # the MCP instrumentation, file by file, with each TypeScript twin
+tests/test_readme.py       # pins the README's public claims (positioning-2026-09.md)
+.github/                   # CODEOWNERS, CI, issue/PR templates, dependabot — mirror flanj-io/sdk's
 ```
 
 ## Non-negotiables (do not regress)
@@ -111,3 +115,10 @@ feature-detection boundary (where it is the honest type). Tests in `tests/`, Arr
 
 **A guard that has never failed is not known to work.** When adding a test that pins a defect, prove
 it red against that defect first.
+
+## Docs
+
+`docs/CONCEPTS.md` (sanitized, public-safe engineering overview). Deeper local context lives in
+`src/flanj/mcp/CLAUDE.md` (the MCP instrumentation, with its TypeScript twin per file) and `REDACTION.md`.
+Community files mirror `flanj-io/sdk`'s: `SECURITY.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, the issue
+and PR templates, `dependabot.yml`. **When one of them changes in `sdk`, change it here too.**
