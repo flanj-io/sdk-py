@@ -306,7 +306,7 @@ def instrument_mcp_client(
         return identity, resolved
 
     def integration_for(e: Any) -> str:
-        return integration if integration else integration_for_host(e.peer_host)
+        return integration if integration else integration_for_host(e.peer_host) or UNKNOWN_INTEGRATION
 
     # ---- JSON-RPC id observation ---------------------------------------------
 
@@ -744,6 +744,11 @@ def _unwrap_jsonrpc(message: Any) -> Any:
         if inner is not None and not isinstance(inner, (str, int, float, bool)):
             message = inner
     return message
+
+
+#: The integration id when none is configured and the edge key derives to nothing
+#: (a server whose name has no ASCII letter or digit).
+UNKNOWN_INTEGRATION = "unknown-integration"
 
 
 def integration_for_host(host: str) -> str:
