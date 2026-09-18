@@ -47,7 +47,7 @@ if ever moved to a span event):
 | `flanj.direction` | string | `"client"` = egress (org is **consumer**) \| `"server"` = ingress (org is **provider**) |
 | `flanj.peer.host` | string | the OTHER end's host[:port] — egress: the destination; ingress: the caller/source. The edge key. |
 | `flanj.peer.addr` *(optional)* | string | the peer's socket address (IP) when the socket layer exposed one — egress: the resolved remote address; ingress: `socket.remoteAddress` (behind a proxy: the last hop's). Transport detail for display/debugging; NEVER an identity or edge key. Omitted when unknown. |
-| `flanj.edge.class` | string | `"external"` \| `"internal"` — classification of `peer.host`, byte-identical in SDK + collector. **Internal** = RFC1918 (10/8, 172.16-31/12, 192.168/16) / loopback (127/8, `::1`) / unspecified (`::`) / link-local (169.254/16, `fe80::/10`) / ULA (`fc00::/7`) / a name ending `.svc.cluster.local`·`.internal`·`.local` / single-label host. `::ffff:` IPv4-mapped addresses are unmapped first. Else **external**. v0.5 (Step B) adds the additive value `"local-process"`: a stdio MCP server (see the MCP block below) — bodies ARE captured + redacted (a local MCP process usually fronts an external API; the contract is the server's), unlike `internal` which stays metadata-only. |
+| `flanj.edge.class` | string | `"external"` \| `"internal"` — classification of `peer.host`, byte-identical in SDK + collector. **Internal** = RFC1918 (10/8, 172.16-31/12, 192.168/16) / loopback (127/8, `::1`) / unspecified (`::`) / link-local (169.254/16, `fe80::/10`) / ULA (`fc00::/7`) / a name ending `.svc.cluster.local`·`.internal`·`.local` / single-label host. `::ffff:` IPv4-mapped addresses are unmapped first. Else **external**. v0.5 (Step B) adds the additive value `"local-process"`: a stdio MCP server (see the MCP block below) — bodies ARE captured + redacted (a local MCP process usually fronts an external API; the contract is the server's), unlike `internal` which stays metadata-only. The Python SDK adds `"unknown"`: an MCP server whose transport the SDK never saw, so it cannot tell remote from local — **metadata-only** (it might be internal), `peer.host` = `serverInfo.name`, and the SDK says so once on stderr. Never emitted by the TypeScript SDK (see *SDK parity* below). Consumers treat any class other than `external` as not an integration-graph edge, so the collector needs no change to carry it. |
 | `flanj.capture.bodies` | bool | `true` on external edges (bodies present) · `false` on internal (bodies OMITTED — internal is metadata-only, classified out of surfacing). |
 | `flanj.integration` | string | the integration id, e.g. `"acme-payments"` (may be derived from `peer.host` when auto-discovered) |
 | `flanj.http.method` | string | `"POST"` |
@@ -86,6 +86,19 @@ not by a regex). Headers are `"{}"`; `flanj.http.status_code` is **omitted** (MC
 `redaction.fields` captured exactly as on HTTP. `flanj.peer.host` = the streamable-HTTP endpoint
 host[:port], or `serverInfo.name` for a stdio server (edge class `"local-process"`); a streamable-HTTP
 peer classified `internal` stays metadata-only as ever. Additive attributes:
+
+> **SDK parity.** The TypeScript and Python SDKs share every default and emit the same records; the one
+> intended difference is that the Python SDK does no HTTP body capture. Two further differences follow from
+> the runtime and are recorded here so they are not re-litigated as bugs:
+>
+> 1. **Edge class `"unknown"` (Python only).** A JavaScript MCP `Client` keeps its transport, and the
+>    transport knows its URL, so the TypeScript SDK can always place a server. A Python `ClientSession` holds
+>    two in-memory streams and no URL: the SDK learns where a server is when its transport *opens* (it wraps
+>    `streamable_http_client` / `sse_client` / `stdio_client`). A session whose transport was opened before the
+>    SDK loaded is `"unknown"` — metadata-only, never guessed. Hence the Python SDK's load-first rule.
+> 2. **The zero-code entry auto-instruments MCP.** `node -r @flanj/sdk/register` switches on HTTP body
+>    capture; `import flanj.register` switches on MCP client capture instead, since that is the whole of what
+>    the Python SDK does. Both also start the OTLP pipeline and flush on exit.
 
 > **Server identity, since protocol revision 2026-07-28.** That revision removed the `initialize` /
 > `notifications/initialized` handshake and protocol-level sessions, so the client accessors the v0.5
@@ -524,7 +537,7 @@ languages, and a divergence fails CI in whichever repo drifted.
 returns a redacted clone + fired patterns; engine choice is per recognizer). Detection decisions are made by
 vetted offline validators — TS: `validator` (`isLuhnNumber`, `isEmail`, `isIBAN`) + `libphonenumber-js`; Go:
 `govalidator` (`IsEmail`, `IsSSN`) + `nyaruka/phonenumbers` + own Luhn / mod-97 IBAN — **not hand-rolled regex,
-and not a third-party redaction engine**. The wrapper (ours, identical in both languages) owns: deep traversal
+and not a third-party redaction engine**. The wrapper (ours, identical in every language) owns: deep traversal
 of objects/arrays/(Go) structs with keys scanned and PAN-as-number / CVV-under-key handled; **Luhn gating** (the
 PAN gate is pure Luhn, never brand/BIN-gated); **base64 decode-then-scan** (whole encoded run → token); separator
 normalization (detect on digits, redact the original span; a PAN next to other separated digit groups is still
@@ -533,7 +546,7 @@ country code and goes through the phone library); **form-urlencoded** decode-the
 truncated/malformed JSON (every byte is scanned by some path); and **zero external calls** (lint-banned +
 sentinel-tested in TS; source-banned `IsExistingEmail`/`IsDialString`/`IsHost` + `go list -deps` audit in Go).
 The text path rewrites ONLY the scalars that fired, so JSON formatting/key order/untouched literals are preserved
-and both languages emit the same bytes. Design reference: `sdk/REDACTION.md`.
+and every language emits the same bytes. Design reference: `sdk/REDACTION.md`.
 
 The floor applies to **every captured body — inbound and outbound, any edge classification** (`internal` edges
 are metadata-only, so there is nothing to redact; but any body that IS captured is always floor-scanned first).
@@ -558,7 +571,7 @@ Token delimiters are `U+27E6`/`U+27E7` (`⟦ ⟧`) — regex-stable, won't colli
 `redact.Enhance`): `spec` is a list of `{path, type}` (dot path, `[]` = every array element, `type` a floor id).
 It is applied to the floor's **output** and may only ADD tokens: it only replaces a string/number leaf carrying no
 token; a scalar the floor touched is immutable to it; unresolvable paths/unknown types are ignored. The
-never-subtract law (every floor token survives unchanged at its path) is asserted by both suites over every
+never-subtract law (every floor token survives unchanged at its path) is asserted by every suite over every
 fixture × every spec.
 
 **Drift interplay.** The floor runs BEFORE drift detection, so drift only ever sees redacted bodies. A spec
@@ -581,7 +594,7 @@ covers older SDKs in the compatibility window that emit no fields).
 3. **Redact before store/emit:** the raw buffer is dropped after redaction; no raw body is ever set as an
    attribute, stored, or transmitted — even transiently.
 4. **Zero external calls:** the floor is a pure function of its input.
-5. **Parity:** TS and Go produce identical results on the shared fixtures.
+5. **Parity:** TypeScript, Go and Python produce identical results on the shared fixtures.
 
 ---
 

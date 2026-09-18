@@ -10,15 +10,15 @@ audience this is built for - agent and MCP-client applications - has MCP traffic
 watch, not a REST integration. MCP-only is a complete product for that shape, not a
 partial SDK.
 
-Quick start::
+Quick start - the FIRST line of your program, before anything imports ``mcp``::
 
-    from mcp import ClientSession
-    from flanj import instrument_mcp_client, otlp_logger
+    import flanj.register  # noqa: F401
 
-    logger = otlp_logger(endpoint="http://localhost:4318/v1/logs", service_name="my-agent")
-    session = ClientSession(read_stream, write_stream)
-    instrument_mcp_client(session, integration="acme-tools", logger=logger)
-    # use `session` exactly as before - nothing about its behaviour changes.
+Every MCP client session opened afterwards is captured, redacted and exported.
+To instrument sessions yourself, call ``handle = flanj.start()`` first and then
+``handle.instrument(session)``. Either way flanj must load before any MCP
+transport opens: a Python session holds no URL, so the SDK learns where each
+server is when its transport opens (``flanj.mcp.transports``).
 
 Requires Python >= 3.10 (see :mod:`flanj.runtime` for why, and for the three places
 that floor is stated).
@@ -40,6 +40,7 @@ from typing import TYPE_CHECKING, Any
 from .version import CAPTURE_VERSION, __version__
 
 if TYPE_CHECKING:  # type checkers only; at runtime these resolve via __getattr__
+    from .flush_on_exit import flush_on_exit
     from .mcp import (
         McpCapturedCall,
         McpContractSnapshot,
@@ -48,12 +49,19 @@ if TYPE_CHECKING:  # type checkers only; at runtime these resolve via __getattr_
         instrument_mcp_client,
         resolve_mcp_edge,
     )
+    from .mcp.auto import patch_client_session_class, register_mcp_auto_instrumentation
     from .otlp import otlp_logger
     from .otlp_endpoint import resolve_otlp_endpoint
     from .runtime import SUPPORTED_PYTHON, SUPPORTED_PYTHON_SPECIFIER, assert_supported_python
+    from .start import FlanjHandle, start
 
 #: Public name -> the submodule that defines it.
 _EXPORTS = {
+    "start": "flanj.start",
+    "FlanjHandle": "flanj.start",
+    "flush_on_exit": "flanj.flush_on_exit",
+    "register_mcp_auto_instrumentation": "flanj.mcp.auto",
+    "patch_client_session_class": "flanj.mcp.auto",
     "instrument_mcp_client": "flanj.mcp",
     "resolve_mcp_edge": "flanj.mcp",
     "build_mcp_call_attributes": "flanj.mcp",

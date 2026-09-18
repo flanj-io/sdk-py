@@ -18,9 +18,14 @@ never "the agent broke".
 | `record.py` | Call and snapshot records → the CONTRACTS §2 rows (HTTP attribute set plus `flanj.transport`/`flanj.mcp.*`, minus `flanj.http.status_code`). Emits through either shape of the OTel logs API, detected from the signature. | `mcp-record.ts` |
 | `result_meta.py` | The **protocol revision 2026-07-28** readers, all total and read-only: server identity, W3C trace context, `resultType`, Tasks handles, catalogue cache hints. Also `get_field`, which reads every protocol field by wire name **and** python name. | `result-meta.ts` |
 | `types.py` | The shared shapes. | `mcp-types.ts` |
+| `auto.py` | `register_mcp_auto_instrumentation` / `patch_client_session_class`: `initialize`/`list_tools`/`call_tool` on `ClientSession` become trampolines that instrument each instance on first use, returning the wrapped coroutine (no added `await`). | `auto-instrument.ts` |
+| `transports.py` | Wraps `streamable_http_client` / `sse_client` / `stdio_client` (and every re-export) so the streams they yield carry the URL or `stdio`. On 2.x the HTTP streams have `__slots__`; the tag goes on their `_inner`. | *none* — the JS client holds `transport.url` |
 
-**No twin for `auto-instrument.ts`.** There is no auto-instrumentation path in Python yet: the caller
-instruments each session.
+**No TypeScript twin for `transports.py`, and why.** A JavaScript `Client` keeps its transport, and the
+transport knows its URL. A Python `ClientSession` holds two in-memory streams and nothing else, so the URL can
+only be learned when the transport OPENS. Hence the load-first rule, and the `unknown` edge class for a
+session whose transport flanj never saw (metadata-only, one stderr line) — a Python-specific value recorded in
+CONTRACTS §2, never a guess.
 
 ## Never break
 
@@ -43,6 +48,10 @@ instruments each session.
 - **An `input_required` result and a Tasks handle are not evidence.** Both are captured and marked; a task
   handle's body is dropped.
 - **Defaults match the TypeScript SDK** (`refetch_on_list_changed=True` is pinned by a test).
+- **Both `mcp` lines.** 1.x keeps no serverInfo after the handshake (so `initialize` is wrapped and read)
+  and has no dispatcher (so the client's ids are observed on `_write_stream.send`). CI runs every test on
+  both lines; `tests/mcp/_real.py` picks the matching primitives.
+- **Unknown is not a guess.** `resolve_edge` never falls back to stdio; an `unknown` edge captures no body.
 
 ## Wiring
 

@@ -54,7 +54,9 @@ def assemble_mcp_call(
         direction="client",
         peer_host=peer_host,
         edge_class=edge_class,
-        capture_bodies=edge_class != "internal",
+        # Bodies only where we know the server is not internal. An `unknown` edge
+        # might be internal, so it is treated as one: fail closed.
+        capture_bodies=edge_class not in ("internal", "unknown"),
         method="tools/call",
         protocol="mcp:",
         host=peer_host,

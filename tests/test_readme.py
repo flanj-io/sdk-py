@@ -36,3 +36,12 @@ def test_it_states_what_it_does_not_capture() -> None:
     """Honest limits, stated rather than hidden — a silent gap reads as coverage."""
     assert "**Not captured:**" in README
     assert "HTTP request/response bodies" in README
+
+
+def test_the_quick_start_leads_with_the_zero_code_entry_and_the_load_first_rule() -> None:
+    """Loading flanj after the app imports an MCP transport opener silently loses edge
+    detection - the README's own smoke script got it wrong the day the rule was new."""
+    quick_start = README[README.index("## Quick start") : README.index("## What is captured")]
+    assert "import flanj.register" in quick_start
+    assert "### Load flanj first" in quick_start
+    assert "`unknown`" in quick_start, "the README must say what happens when the rule is broken"

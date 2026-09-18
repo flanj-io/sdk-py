@@ -10,9 +10,9 @@ from ..redaction import PatternId
 #: How the MCP server is reached, as far as the CLIENT can tell. The SDK
 #: instruments the client session, never a transport - this is derived from the
 #: session's own transport reference / config, not from sniffing.
-McpServerKind = str  # 'streamable-http' | 'stdio'
+McpServerKind = str  # 'streamable-http' | 'stdio' | 'unknown'
 
-EdgeClass = str  # 'external' | 'internal' | 'local-process'
+EdgeClass = str  # 'external' | 'internal' | 'local-process' | 'unknown'
 
 
 @dataclass
