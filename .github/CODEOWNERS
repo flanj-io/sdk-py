@@ -1,0 +1,4 @@
+# Every path is owned by the maintainer. Together with the "main: owner approval"
+# ruleset this means a pull request from anyone else needs @IdanBerko's review to
+# merge, and two other collaborators can never approve each other into main.
+* @IdanBerko

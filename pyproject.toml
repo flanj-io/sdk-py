@@ -1,0 +1,93 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "flanj"
+dynamic = ["version"]
+description = "Flanj SDK for Python: out-of-band MCP client capture with redaction at source, exported over OTLP to a collector you run."
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+requires-python = ">=3.10"
+authors = [{ name = "Flanj" }]
+keywords = ["mcp", "model-context-protocol", "opentelemetry", "otlp", "redaction", "observability"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: System :: Monitoring",
+  "Typing :: Typed",
+]
+dependencies = [
+  # The redaction floor's one composed validator. It is pure - no network, no DNS,
+  # no filesystem - which tests/redaction/test_module_graph.py enforces over the
+  # whole import graph, not just over our own imports.
+  #
+  # `python-stdnum` was the obvious second dependency (Luhn, IBAN) and is
+  # deliberately NOT here: stdnum/util.py imports `ssl` at module scope, which puts
+  # socket, ssl and subprocess into the module graph of a floor whose foundational
+  # property is that it does no I/O. Both of those checks are fixed arithmetic, so
+  # they are owned instead - which is what the Go collector already does, and for
+  # the same stated reason (collector/internal/redact/iban.go).
+  "phonenumbers>=8.13",
+  # The OTLP logs export path.
+  "opentelemetry-api>=1.24",
+  "opentelemetry-sdk>=1.24",
+  "opentelemetry-exporter-otlp-proto-http>=1.24",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "pytest-asyncio>=0.23",
+  "mypy>=1.10",
+  "ruff>=0.5",
+  "mcp>=1.9",
+]
+
+[project.urls]
+Homepage = "https://flanj.io"
+Source = "https://github.com/flanj-io/sdk-py"
+Issues = "https://github.com/flanj-io/sdk-py/issues"
+
+[tool.hatch.version]
+path = "src/flanj/version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/flanj"]
+
+[tool.hatch.build.targets.sdist]
+# `contracts/` and `tests/` are repo/CI artifacts, not shipped: the published
+# distribution is the library. (The TypeScript SDK's packaging spec pins the same
+# rule for its tarball.)
+include = ["src/flanj", "README.md", "LICENSE", "NOTICE", "pyproject.toml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+filterwarnings = ["error"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+# The lazy top-level package (PEP 562) re-exports under `if TYPE_CHECKING` so type
+# checkers and IDEs still see the public names; at runtime they resolve through
+# `__getattr__`. To the linter those imports look unused, which is the rule not
+# knowing about module-level `__getattr__` - not a dead import.
+"src/flanj/__init__.py" = ["F401"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+files = ["src/flanj"]

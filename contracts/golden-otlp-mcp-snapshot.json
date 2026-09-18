@@ -1,0 +1,128 @@
+{
+  "_comment": "v0.5 (Step B). Canonical OTLP/HTTP-JSON logs payload the SDK emits for one COMPLETE observed tools/list (record type contract_snapshot). flanj.mcp.contract_snapshot carries the floor-redacted ToolDef-shaped tools array (wire keys name/description/inputSchema/outputSchema/annotations, decodable by the collector contract.ParseToolsList) + serverInfo + protocolVersion + capabilities.tools.listChanged. list_transactions declares NO outputSchema - the honest \"no output contract declared\" state, never synthesized.",
+  "resourceLogs": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "acme-consumer"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "@flanj/sdk"
+            }
+          }
+        ]
+      },
+      "scopeLogs": [
+        {
+          "scope": {
+            "name": "@flanj/sdk",
+            "version": "0.0.1"
+          },
+          "logRecords": [
+            {
+              "timeUnixNano": "1755504000000000000",
+              "observedTimeUnixNano": "1755504000042000000",
+              "severityNumber": 9,
+              "severityText": "INFO",
+              "body": {
+                "stringValue": ""
+              },
+              "attributes": [
+                {
+                  "key": "flanj.capture.version",
+                  "value": {
+                    "stringValue": "1"
+                  }
+                },
+                {
+                  "key": "flanj.record.type",
+                  "value": {
+                    "stringValue": "contract_snapshot"
+                  }
+                },
+                {
+                  "key": "flanj.transport",
+                  "value": {
+                    "stringValue": "mcp"
+                  }
+                },
+                {
+                  "key": "flanj.direction",
+                  "value": {
+                    "stringValue": "client"
+                  }
+                },
+                {
+                  "key": "flanj.peer.host",
+                  "value": {
+                    "stringValue": "mcp.acme.test"
+                  }
+                },
+                {
+                  "key": "flanj.edge.class",
+                  "value": {
+                    "stringValue": "external"
+                  }
+                },
+                {
+                  "key": "flanj.integration",
+                  "value": {
+                    "stringValue": "acme-payments"
+                  }
+                },
+                {
+                  "key": "flanj.mcp.contract_snapshot",
+                  "value": {
+                    "stringValue": "{\"tools\":[{\"name\":\"get_balance\",\"description\":\"Current balance for an account.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"account_id\":{\"type\":\"string\"}},\"required\":[\"account_id\"]},\"outputSchema\":{\"type\":\"object\",\"properties\":{\"amount\":{\"type\":\"integer\"},\"currency\":{\"type\":\"string\"}},\"required\":[\"amount\",\"currency\"]}},{\"name\":\"create_refund\",\"description\":\"Refund a charge.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"amount\":{\"type\":\"integer\"},\"card_number\":{\"type\":\"string\"},\"currency\":{\"type\":\"string\"}},\"required\":[\"amount\",\"currency\"]},\"outputSchema\":{\"type\":\"object\",\"properties\":{\"refund\":{\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"string\"},\"amount\":{\"type\":\"integer\"},\"status\":{\"type\":\"string\"}},\"required\":[\"id\",\"amount\",\"status\"]}},\"required\":[\"refund\"]},\"annotations\":{\"readOnlyHint\":false}},{\"name\":\"list_transactions\",\"description\":\"Recent transactions for an account.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"account_id\":{\"type\":\"string\"}},\"required\":[\"account_id\"]}}],\"serverInfo\":{\"name\":\"acme-payments-mcp\",\"version\":\"3.2.0\"},\"protocolVersion\":\"2025-06-18\",\"capabilities\":{\"tools\":{\"listChanged\":true}}}"
+                  }
+                },
+                {
+                  "key": "flanj.mcp.tool.count",
+                  "value": {
+                    "intValue": "3"
+                  }
+                },
+                {
+                  "key": "flanj.redaction.applied",
+                  "value": {
+                    "boolValue": false
+                  }
+                },
+                {
+                  "key": "flanj.redaction.patterns",
+                  "value": {
+                    "stringValue": "[]"
+                  }
+                },
+                {
+                  "key": "flanj.mcp.server.name",
+                  "value": {
+                    "stringValue": "acme-payments-mcp"
+                  }
+                },
+                {
+                  "key": "flanj.mcp.server.version",
+                  "value": {
+                    "stringValue": "3.2.0"
+                  }
+                },
+                {
+                  "key": "flanj.mcp.protocol.version",
+                  "value": {
+                    "stringValue": "2025-06-18"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
