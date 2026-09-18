@@ -127,7 +127,7 @@ def instrument_mcp_client(
     logger: Any = None,
     on_capture: Callable[[McpCapturedCall], None] | None = None,
     on_snapshot: Callable[[McpContractSnapshot], None] | None = None,
-    refetch_on_list_changed: bool = False,
+    refetch_on_list_changed: bool = True,
 ) -> Any:
     """Instrument ``session`` in place and return it.
 
@@ -140,14 +140,14 @@ def instrument_mcp_client(
     :param on_capture: sink for each captured, redacted tool call.
     :param on_snapshot: sink for each complete observed ``tools/list``.
     :param refetch_on_list_changed: refetch and re-snapshot on
-        ``notifications/tools/list_changed``. **Defaults to False here, where the
-        TypeScript SDK defaults to True** - a deliberate difference, not an
-        omission. Refetching issues a request the application did not make; in
-        Python that also means owning a task whose lifetime belongs to the caller's
-        nursery, not to us. A capture library that adds traffic and tasks to its
-        host is no longer out-of-band. Opt in when you want the snapshot to track a
-        server that announces changes; leave it off and the snapshot updates the
-        next time the app lists tools itself.
+        ``notifications/tools/list_changed``, chained so the application's own
+        message handler still runs. Default True - the SAME default as the
+        TypeScript SDK's ``refetchOnListChanged``, and deliberately so: two tenants
+        watching one MCP server must build the same baseline whatever language
+        they are written in, and a divergent default would make them differ
+        silently, one layer above anything the shared fixtures can see. The
+        refetch runs on the session's own task group, so its lifetime is bounded
+        by the session exactly as the Node promise is by the client.
     """
     assert_supported_python()
 
@@ -491,7 +491,7 @@ def instrument_mcp_client(
 
         _install(session, "call_tool", call_tool, original_call_tool)
 
-    if refetch_on_list_changed:
+    if refetch_on_list_changed and hasattr(session, "_message_handler"):
         _install_list_changed_refetch(session, state)
 
     return session
@@ -604,10 +604,20 @@ def _session_id_of(session: Any) -> str | None:
 def _install_list_changed_refetch(session: Any, state: dict[str, Any]) -> None:
     """Chain a ``tools/list_changed`` handler that re-drives the wrapped ``list_tools``.
 
-    Opt-in only - see ``refetch_on_list_changed``. The refetch runs on the caller's
-    own task group when the session exposes one; if it does not, we do NOT create a
-    task group of our own, because a task whose lifetime we cannot bound is exactly
-    the kind of behaviour change this SDK promises not to introduce.
+    The Python counterpart of the TypeScript SDK chaining
+    ``fallbackNotificationHandler``, installed under the same condition: only when
+    the session has the hook (``_message_handler``, which ``ClientSession`` reads at
+    call time, so replacing it on the instance is enough).
+
+    The refetch is scheduled on the SESSION's task group, so it can never outlive
+    the session. A session that is receiving notifications at all is running inside
+    that task group - it is where its dispatcher reads - so the "no task group"
+    branch below is defensive, not a behavioural difference: we will not create a
+    task group of our own, because a task with a lifetime we do not bound is the
+    one thing an out-of-band wrapper must not introduce.
+
+    As in the TypeScript SDK, a change announced while a refetch is already running
+    is folded into that refetch rather than starting a second one.
     """
     previous = _get(session, "_message_handler")
 
@@ -630,6 +640,28 @@ def _install_list_changed_refetch(session: Any, state: dict[str, Any]) -> None:
         pass
 
 
+def _list_tools_page(session: Any, cursor: Any) -> Any:
+    """Request one cursor page, in whichever shape this client line accepts.
+
+    The ``mcp`` 2.x line takes ``list_tools(*, params=PaginatedRequestParams(cursor=...))``;
+    the 1.x line took ``list_tools(cursor=...)``. Passing the wrong one is a
+    ``TypeError`` - which, inside a fenced capture task, would silently end every
+    refetch after its first page.
+    """
+    import inspect
+
+    target = getattr(session.list_tools, "__wrapped__", session.list_tools)
+    try:
+        takes_params = "params" in inspect.signature(target).parameters
+    except (TypeError, ValueError):
+        takes_params = False
+    if takes_params:
+        from mcp import types as mcp_types  # present: this IS an mcp session
+
+        return session.list_tools(params=mcp_types.PaginatedRequestParams(cursor=cursor))
+    return session.list_tools(cursor=cursor)
+
+
 async def _refetch_all_tools(session: Any, state: dict[str, Any]) -> None:
     """Drive the (already wrapped) list_tools through its cursor chain.
 
@@ -638,7 +670,7 @@ async def _refetch_all_tools(session: Any, state: dict[str, Any]) -> None:
     try:
         cursor: Any = None
         for _ in range(MAX_PAGES):  # bounded: a hostile cursor chain cannot loop forever
-            result = await session.list_tools() if cursor is None else await session.list_tools(cursor=cursor)
+            result = await (session.list_tools() if cursor is None else _list_tools_page(session, cursor))
             next_cursor = get_field(result, "nextCursor")
             if next_cursor is None or next_cursor == "":
                 return
