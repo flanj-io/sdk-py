@@ -37,7 +37,7 @@ dependencies = [
   # the same stated reason (collector/internal/redact/iban.go).
   "phonenumbers>=8.13",
   # The OTLP logs export path.
-  "opentelemetry-api>=1.24",
+  "opentelemetry-api>=1.44.0",
   "opentelemetry-sdk>=1.24",
   "opentelemetry-exporter-otlp-proto-http>=1.24",
 ]
