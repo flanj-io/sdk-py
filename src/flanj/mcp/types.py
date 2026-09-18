@@ -62,6 +62,9 @@ class McpCallMeta:
     #: CLIENT-GENERATED. It appears in the provider's logs only if they log it; it
     #: is never presented as a provider-issued id.
     client_request_id: str | None = None
+    #: The JSON-RPC ``error.code`` when the ``tools/call`` REQUEST itself was
+    #: rejected (``flanj.mcp.error.code``) - never for a result with ``isError``.
+    error_code: int | None = None
 
 
 @dataclass
@@ -106,3 +109,5 @@ class McpContractSnapshot:
     #: overstating it.
     catalog_ttl_ms: float | None = None
     catalog_cache_scope: str | None = None
+    #: stdio only: ``flanj.mcp.server.command`` (see :mod:`flanj.mcp.launch`).
+    server_command: str | None = None

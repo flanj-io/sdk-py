@@ -98,8 +98,10 @@ Records are flushed on normal exit and on SIGTERM / SIGINT (`flanj.flush_on_exit
 
 **Edges.** A server reached over a URL is `external` or `internal` by its host, the same rule the collector
 uses; internal servers are metadata-only. A server your app launched over stdio is `local-process`, keyed
-by the name it reports, and its bodies are captured: it usually wraps someone else's API. A server flanj
-could not place is `unknown`, metadata-only.
+by the name it reports, and its bodies are captured: it usually wraps someone else's API. Its snapshot also
+records **how it was launched** (`npx @stripe/mcp@0.2.1 …`): the command and arguments only, each
+floor-redacted, never the environment or working directory. A server flanj could not place is `unknown`,
+metadata-only.
 
 ## What is captured
 
@@ -107,6 +109,8 @@ could not place is `unknown`, metadata-only.
 official client supports (streamable HTTP, stdio). For each call: the arguments as the request body,
 `structuredContent` (else the `content[]` text) as the response body, the outcome (`isError`), the server's
 identity from the result's `_meta`, and the JSON-RPC id your client generated, labeled as client-generated.
+A call the server **rejected** (a JSON-RPC error rather than a result with `isError`) also records the
+error's code.
 For each **complete** `tools/list`: the server's own declared schemas, verbatim, never re-inferred.
 
 **Not captured:**

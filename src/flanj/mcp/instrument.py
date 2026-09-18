@@ -51,6 +51,7 @@ from ..config import DEFAULT_BODY_CAP_BYTES
 from ..runtime import assert_supported_python
 from .assemble_call import assemble_mcp_call
 from .assemble_snapshot import assemble_contract_snapshot
+from .launch import launch_command_attribute
 from .record import emit_contract_snapshot, emit_mcp_call
 from .resolve_edge import EDGE_CLASS_UNKNOWN, resolve_mcp_edge
 from .result_meta import _get, catalog_cache_hints, get_field, server_info_from_meta
@@ -404,7 +405,14 @@ def instrument_mcp_client(
         if on_snapshot is not None:
             on_snapshot(snap)
 
-    def capture_call(tool_name: str, args: Any, result: Any, is_error: bool, started: float) -> None:
+    def capture_call(
+        tool_name: str,
+        args: Any,
+        result: Any,
+        is_error: bool,
+        started: float,
+        error_code: int | None = None,
+    ) -> None:
         try:
             identity, e = edge()
             sink_call(
@@ -422,6 +430,7 @@ def instrument_mcp_client(
                     protocol_version=identity.protocol_version,
                     session_id=_session_id_of(session),
                     client_request_id=claim_client_request_id(tool_name),
+                    error_code=error_code,
                     duration_ms=max(0, round((time.monotonic() - started) * 1000)),
                     body_cap_bytes=body_cap_bytes,
                 )
@@ -443,6 +452,7 @@ def instrument_mcp_client(
                     server=identity,
                     tools=tools,
                     cache=state["catalog_cache"],
+                    server_command=_server_command(e, _tag_of_session(session)),
                 )
             )
         except Exception as exc:
@@ -544,10 +554,11 @@ def instrument_mcp_client(
                 # anyway (both derive from BaseException); this clause exists so the
                 # next reader cannot widen that one by accident.
                 raise
-            except Exception:
+            except Exception as exc:
                 # The call happened and failed: record it (no response body), and
-                # re-raise untouched.
-                capture_call(tool_name, tool_args, None, True, started)
+                # re-raise untouched. A request the server REJECTED carries its
+                # JSON-RPC code (`flanj.mcp.error.code`), as in the TypeScript SDK.
+                capture_call(tool_name, tool_args, None, True, started, _jsonrpc_code_of(exc))
                 raise
             else:
                 # Identity rides every result now - learn it before resolving the edge.
@@ -675,6 +686,38 @@ def _tag_of_session(session: Any) -> TransportTag | None:
             tag = tag_of(_get(holder, name))
             if tag is not None:
                 return tag
+    return None
+
+
+def _server_command(e: Any, tag: TransportTag | None) -> str | None:
+    """``flanj.mcp.server.command`` for a stdio edge whose launch flanj saw."""
+    if e.server_kind != "stdio" or tag is None or not tag.command:
+        return None
+    return launch_command_attribute(tag.command[0], tag.command[1:])
+
+
+#: The protocol-error classes of the two `mcp` lines: 2.x `MCPError`, 1.x `McpError`.
+#: Matched by NAME along the MRO, as the TypeScript SDK does, so neither line is
+#: imported and a subclass still counts.
+_PROTOCOL_ERROR_NAMES = frozenset(("MCPError", "McpError"))
+
+
+def _jsonrpc_code_of(exc: BaseException) -> int | None:
+    """The JSON-RPC ``error.code`` of a REJECTED request, or None.
+
+    Only protocol errors carry one; a transport failure, a timeout or anything else
+    does not. 2.x puts the code on the exception, 1.x on ``exc.error``.
+    """
+    try:
+        if not any(klass.__name__ in _PROTOCOL_ERROR_NAMES for klass in type(exc).__mro__):
+            return None
+        code = getattr(exc, "code", None)
+        if code is None:
+            code = getattr(getattr(exc, "error", None), "code", None)
+        if isinstance(code, int) and not isinstance(code, bool):
+            return code
+    except Exception:
+        pass
     return None
 
 

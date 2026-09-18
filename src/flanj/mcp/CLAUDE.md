@@ -19,7 +19,8 @@ never "the agent broke".
 | `result_meta.py` | The **protocol revision 2026-07-28** readers, all total and read-only: server identity, W3C trace context, `resultType`, Tasks handles, catalogue cache hints. Also `get_field`, which reads every protocol field by wire name **and** python name. | `result-meta.ts` |
 | `types.py` | The shared shapes. | `mcp-types.ts` |
 | `auto.py` | `register_mcp_auto_instrumentation` / `patch_client_session_class`: `initialize`/`list_tools`/`call_tool` on `ClientSession` become trampolines that instrument each instance on first use, returning the wrapped coroutine (no added `await`). | `auto-instrument.ts` |
-| `transports.py` | Wraps `streamable_http_client` / `sse_client` / `stdio_client` (and every re-export) so the streams they yield carry the URL or `stdio`. On 2.x the HTTP streams have `__slots__`; the tag goes on their `_inner`. | *none* — the JS client holds `transport.url` |
+| `transports.py` | Wraps `streamable_http_client` / `sse_client` / `stdio_client` (and every re-export) so the streams they yield carry the URL, or `stdio` plus the launch `(command, *args)` from `StdioServerParameters` (never `env`/`cwd`). On 2.x the HTTP streams have `__slots__`; the tag goes on their `_inner`. | *none* — the JS client holds `transport.url` |
+| `launch.py` | `flanj.mcp.server.command`: `[command, ...args]`, each element floor-redacted, compact JSON, capped at 1024 bytes with a trailing `"…"` element. The encoding is specified to the byte in CONTRACTS §2; `tests/mcp/test_launch_command.py` pins literal vectors shared with the TS suite. | `launch-command.ts` |
 
 **No TypeScript twin for `transports.py`, and why.** A JavaScript `Client` keeps its transport, and the
 transport knows its URL. A Python `ClientSession` holds two in-memory streams and nothing else, so the URL can

@@ -42,6 +42,9 @@ class TransportTag:
     #: or ``stdio`` for a server the app launched as a child process.
     kind: str
     url: str | None = None
+    #: stdio only: ``(command, *args)`` as the client launched the server. Never
+    #: the environment or working directory.
+    command: tuple[str, ...] | None = None
 
 
 # (module, function name, tag builder). The streamable-HTTP opener has two names:
@@ -52,6 +55,11 @@ def _url_tag(args: tuple[Any, ...], kwargs: dict[str, Any]) -> TransportTag:
 
 
 def _stdio_tag(args: tuple[Any, ...], kwargs: dict[str, Any]) -> TransportTag:
+    params = kwargs.get("server", args[0] if args else None)
+    command = getattr(params, "command", None)
+    argv = getattr(params, "args", None) or []
+    if isinstance(command, str) and command:
+        return TransportTag(kind="stdio", command=(command, *[str(a) for a in argv]))
     return TransportTag(kind="stdio")
 
 

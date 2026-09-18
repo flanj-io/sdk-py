@@ -40,6 +40,7 @@ def assemble_mcp_call(
     protocol_version: str | None = None,
     session_id: str | None = None,
     client_request_id: str | None = None,
+    error_code: int | None = None,
     body_cap_bytes: int = DEFAULT_BODY_CAP_BYTES,
 ) -> McpCapturedCall:
     req_text, req_truncated = cap_text(_serialize(args), body_cap_bytes)
@@ -89,6 +90,7 @@ def assemble_mcp_call(
         protocol_version=protocol_version,
         session_id=session_id,
         client_request_id=client_request_id,
+        error_code=error_code,
         result_type=result_type_of(result),
         task_id=task_id_of(result),
     )
