@@ -29,6 +29,7 @@ def assemble_contract_snapshot(
     server: McpServerIdentity,
     tools: Sequence[Any],
     cache: CatalogCacheHints | None = None,
+    server_command: str | None = None,
 ) -> McpContractSnapshot:
     defs = [d for d in (_to_tool_def(t) for t in tools) if d is not None]
 
@@ -69,6 +70,7 @@ def assemble_contract_snapshot(
         protocol_version=server.protocol_version,
         catalog_ttl_ms=cache.ttl_ms if cache else None,
         catalog_cache_scope=cache.cache_scope if cache else None,
+        server_command=server_command,
     )
 
 

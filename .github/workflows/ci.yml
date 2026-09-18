@@ -29,8 +29,14 @@ jobs:
           enable-cache: true
       - name: Install
         run: uv venv --python ${{ matrix.python }} && uv pip install -e ".[dev]"
-      - name: Test
+      - name: Test (mcp 2.x)
         run: uv run --no-project pytest -q
+      # Same job, second pass - so no required check is renamed. Most Python agents
+      # still run the 1.x line, and it differs exactly where capture depends on it:
+      # it keeps no serverInfo after the handshake and has no dispatcher to observe
+      # the client's JSON-RPC ids on.
+      - name: Test (mcp 1.x)
+        run: uv pip install "mcp<2" && uv run --no-project pytest -q
       - name: Lint
         run: uv run --no-project ruff check .
       - name: Types

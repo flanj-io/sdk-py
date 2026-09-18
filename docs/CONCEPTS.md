@@ -25,8 +25,8 @@ schema), that **drift** is surfaced with the exact evidence: the redacted call t
 - **`sdk`** — a thin OpenTelemetry (JS) distribution that adds HTTP request/response **body capture**, MCP
   client capture, and **redaction-at-source**.
 - **`sdk-py`** (this repo) — the Python SDK: MCP client capture only, with the same redaction floor and the
-  same OTLP record convention. It wraps the official `mcp` package's `ClientSession`; it never touches a
-  transport.
+  same OTLP record convention. It wraps the official `mcp` package's `ClientSession`. It never proxies or
+  reads a transport's traffic; it wraps the transport openers only to learn where each server is.
 - **`collector`** — an OpenTelemetry Collector distribution: receives the SDKs' OTLP, applies
   defense-in-depth redaction, runs drift detection near the source, stores redacted calls in a local store
   (a rolling window; embedded by default, or a customer-provided Postgres so several collector pods share

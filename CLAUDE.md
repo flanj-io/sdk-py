@@ -50,8 +50,15 @@ src/flanj/
   otlp_record.py           # build the flanj.* OTLP attributes from a CapturedCall
   otlp_endpoint.py         # FLANJ_/OTEL_ precedence + base-URL -> /v1/logs normalization
   otlp.py                  # the convenience logger
+  start.py                 # start() + FlanjHandle — the TS SDK's start(), minus HTTP capture
+  register.py              # `import flanj.register` — the zero-code entry (start + flush + auto-instrument)
+  flush_on_exit.py         # atexit + SIGTERM/SIGINT flush, bounded, then the app's own handler
+  export_warning.py        # the FIRST failed OTLP export prints one line (same text as TS)
+  capture_warning.py       # the first failed capture / unknown edge prints one line
   mcp/
     instrument.py          # instrument_mcp_client — THE async contract lives here
+    auto.py                # register_mcp_auto_instrumentation — patch ClientSession once
+    transports.py          # wrap the transport openers; tag their streams with url / stdio
     result_meta.py         # the `_meta` readers for protocol revision 2026-07-28
     assemble_call.py       # tools/call -> CapturedCall via the shared assembler
     assemble_snapshot.py   # complete tools/list -> floor-redacted ToolDef-shaped snapshot
@@ -95,7 +102,12 @@ change it in the canonical contract in `e2e/contracts/` first, re-vendor to ever
 keep all the suites green. Do not hand-roll regex detection: locate candidates, let the composed
 validators decide (see `REDACTION.md`).
 
-## Two traps this repo has already hit
+## Three traps this repo has already hit
+
+- **Load flanj first.** A Python `ClientSession` holds no URL, so edges are learned when the
+  transport OPENS (`mcp/transports.py`). Code that did `from mcp.client.stdio import stdio_client`
+  before flanj loaded holds the unwrapped opener, and those sessions are `unknown` — recorded
+  without bodies, never guessed. The stranger smoke got this wrong the day the rule was new.
 
 - **`flanj/__init__.py` must stay lazy.** Python initializes a parent package before its submodule,
   so an eager `__init__` puts `asyncio` — and therefore sockets and TLS — behind `import

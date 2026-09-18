@@ -39,33 +39,69 @@ pip install flanj
 > **Not yet on PyPI.** Until it is, install from source:
 > `pip install git+https://github.com/flanj-io/sdk-py`
 
+Make this the **first line** of your program — before anything imports `mcp`:
+
 ```python
-from mcp import ClientSession
-from flanj import instrument_mcp_client, otlp_logger
-
-logger = otlp_logger(endpoint="http://localhost:4318/v1/logs", service_name="my-agent")
-
-async with ClientSession(read_stream, write_stream) as session:
-    instrument_mcp_client(session, integration="acme-tools", logger=logger)
-    await session.initialize()
-    # Use `session` exactly as before. Nothing about its behavior changes.
-    result = await session.call_tool("get_balance", {"account_id": "acct_1"})
+import flanj.register  # noqa: F401
 ```
+
+That is the whole integration. Every MCP client session your program opens afterwards is captured, redacted
+and exported, and each server is placed on its own edge. It is the counterpart of the TypeScript SDK's
+`node -r @flanj/sdk/register`, and prints one line on startup (`FLANJ_QUIET=1` silences it).
+
+### Load flanj first
+
+A Python `ClientSession` holds two in-memory streams and no URL, so the SDK learns where each MCP server is
+when its transport *opens* — it wraps `streamable_http_client`, `sse_client` and `stdio_client`. A program that
+did `from mcp.client.stdio import stdio_client` before flanj loaded holds the unwrapped function, and flanj
+never sees those transports. The same rule applies to Datadog's `import ddtrace.auto`, for the same reason.
+
+A session whose transport flanj never saw is not guessed at: its edge is **`unknown`**, its calls are recorded
+**without bodies** (it might be an internal server, whose bodies are never read), and flanj says so once on
+stderr, naming the fix.
+
+### Instrumenting a session yourself
+
+```python
+import flanj                        # still first
+handle = flanj.start()              # the OTLP pipeline; wraps the transport openers
+
+from mcp import ClientSession
+from mcp.client.streamable_http import streamable_http_client
+
+async with streamable_http_client("https://mcp.acme.com/mcp") as (read, write):
+    async with ClientSession(read, write) as session:
+        handle.instrument(session)  # or flanj.instrument_mcp_client(session, logger=handle.logger)
+        await session.initialize()
+        # Use `session` exactly as before. Nothing about its behavior changes.
+        result = await session.call_tool("get_balance", {"account_id": "acct_1"})
+```
+
+To instrument every session without the zero-code entry, call
+`flanj.register_mcp_auto_instrumentation(logger=handle.logger)` after `start()`.
 
 ### Configuration
 
 | Option / variable | Default | Meaning |
 |---|---|---|
-| `integration=` | *(required)* | Emitted as `flanj.integration`; one per MCP server you want to track separately. |
-| `endpoint=` | detected from the transport | The streamable-HTTP URL. Its `host[:port]` is the edge key. |
-| `server_kind=` | detected | `"streamable-http"` or `"stdio"`. A stdio server is the edge class `local-process`, keyed by its `serverInfo.name`. |
+| `FLANJ_INTEGRATION_ID` / `integration=` | one per server | Emitted as `flanj.integration`. Unset, each server gets its own id derived from its edge key (`mcp.acme.com` → `mcp-acme-com`), exactly as the collector derives one. |
+| `OTEL_SERVICE_NAME` / `service_name=` | `flanj-consumer` | `service.name` on exported records. |
+| `FLANJ_OTLP_ENDPOINT` / `otlp_endpoint=` | `http://localhost:4318/v1/logs` | The collector's logs endpoint. Then `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT`, then `OTEL_EXPORTER_OTLP_ENDPOINT` (+ `/v1/logs`). If an export fails, the first failure prints one line. |
+| `FLANJ_BODY_CAP_BYTES` / `body_cap_bytes=` | `16384` | Per-body capture cap. |
+| `endpoint=` / `server_kind=` | detected | Only for a session whose transport flanj could not see: the streamable-HTTP URL (its `host[:port]` is the edge key), or `"stdio"`. |
 | `refetch_on_list_changed=` | `True` | On `notifications/tools/list_changed`, refetch the catalogue and re-snapshot. Same default as the TypeScript SDK. |
-| `body_cap_bytes=` | `16384` | Per-body capture cap. |
-| `FLANJ_OTLP_ENDPOINT` | — | Collector logs endpoint for `otlp_logger()`. Then `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT`, then `OTEL_EXPORTER_OTLP_ENDPOINT` (+ `/v1/logs`). Default `http://localhost:4318/v1/logs`. |
-| `FLANJ_SILENCE_CAPTURE_WARNINGS` | unset | Capture failures are fenced and never reach your app; the *first* one prints one line to stderr so a broken capture path is not silent. Set this to silence it. |
+| `FLANJ_QUIET` | unset | `1` silences the `flanj.register` startup line. |
+| `FLANJ_SILENCE_CAPTURE_WARNINGS` | unset | Silences the one-time lines for a failed capture or an `unknown` edge. |
 
-An application that already owns an OpenTelemetry `LoggerProvider` should pass its own logger instead of
-calling `otlp_logger()`.
+Records are flushed on normal exit and on SIGTERM / SIGINT (`flanj.flush_on_exit(handle)`, which
+`flanj.register` installs), bounded to five seconds, after which your own signal handling runs as before.
+
+**Edges.** A server reached over a URL is `external` or `internal` by its host, the same rule the collector
+uses; internal servers are metadata-only. A server your app launched over stdio is `local-process`, keyed
+by the name it reports, and its bodies are captured: it usually wraps someone else's API. Its snapshot also
+records **how it was launched** (`npx @stripe/mcp@0.2.1 …`): the command and arguments only, each
+floor-redacted, never the environment or working directory. A server flanj could not place is `unknown`,
+metadata-only.
 
 ## What is captured
 
@@ -73,6 +109,8 @@ calling `otlp_logger()`.
 official client supports (streamable HTTP, stdio). For each call: the arguments as the request body,
 `structuredContent` (else the `content[]` text) as the response body, the outcome (`isError`), the server's
 identity from the result's `_meta`, and the JSON-RPC id your client generated, labeled as client-generated.
+A call the server **rejected** (a JSON-RPC error rather than a result with `isError`) also records the
+error's code.
 For each **complete** `tools/list`: the server's own declared schemas, verbatim, never re-inferred.
 
 **Not captured:**
@@ -81,8 +119,6 @@ For each **complete** `tools/list`: the server's own declared schemas, verbatim,
   does. Per-library HTTP capture (`requests`/`httpx`/`aiohttp`) is not started.
 - **`tasks/get` payloads.** A Tasks handle is recorded as an envelope with no body, so nothing models the
   envelope as the tool's output shape.
-- **Sessions you did not instrument.** There is no auto-instrumentation path yet; call
-  `instrument_mcp_client` on each session.
 
 Bodies are captured on external and `local-process` edges; an MCP server on an internal address is
 metadata-only. Every captured body is redacted in your process before it is exported; see

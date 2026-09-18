@@ -40,6 +40,8 @@ def build_mcp_call_attributes(captured: McpCapturedCall) -> LogAttributes:
         attrs["flanj.mcp.task.id"] = mcp.task_id
     if mcp.client_request_id is not None:
         attrs["flanj.corr.client_request_id"] = mcp.client_request_id
+    if mcp.error_code is not None:
+        attrs["flanj.mcp.error.code"] = mcp.error_code
     return attrs
 
 
@@ -72,6 +74,8 @@ def build_contract_snapshot_attributes(snap: McpContractSnapshot) -> LogAttribut
         attrs["flanj.mcp.catalog.ttl_ms"] = snap.catalog_ttl_ms
     if snap.catalog_cache_scope is not None:
         attrs["flanj.mcp.catalog.cache_scope"] = snap.catalog_cache_scope
+    if snap.server_command is not None:
+        attrs["flanj.mcp.server.command"] = snap.server_command
     return attrs
 
 

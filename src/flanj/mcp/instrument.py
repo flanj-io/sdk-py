@@ -46,14 +46,16 @@ import weakref
 from collections.abc import Callable
 from typing import Any
 
-from ..capture_warning import warn_capture_failed
+from ..capture_warning import warn_capture_failed, warn_once
 from ..config import DEFAULT_BODY_CAP_BYTES
 from ..runtime import assert_supported_python
 from .assemble_call import assemble_mcp_call
 from .assemble_snapshot import assemble_contract_snapshot
+from .launch import launch_command_attribute
 from .record import emit_contract_snapshot, emit_mcp_call
-from .resolve_edge import resolve_mcp_edge
+from .resolve_edge import EDGE_CLASS_UNKNOWN, resolve_mcp_edge
 from .result_meta import _get, catalog_cache_hints, get_field, server_info_from_meta
+from .transports import TransportTag, tag_of
 from .types import McpCapturedCall, McpContractSnapshot, McpServerIdentity, McpServerKind
 
 _INSTRUMENTED = "__flanj_mcp_instrumented__"
@@ -120,7 +122,7 @@ class _SendObserverRegistry:
 def instrument_mcp_client(
     session: Any,
     *,
-    integration: str,
+    integration: str | None = None,
     endpoint: str | None = None,
     server_kind: McpServerKind | None = None,
     body_cap_bytes: int = DEFAULT_BODY_CAP_BYTES,
@@ -131,7 +133,10 @@ def instrument_mcp_client(
 ) -> Any:
     """Instrument ``session`` in place and return it.
 
-    :param integration: integration id emitted as ``flanj.integration``.
+    :param integration: integration id emitted as ``flanj.integration``. When
+        omitted it is derived from the edge key exactly as the collector derives one
+        from a host (``mcp.acme.com`` -> ``mcp-acme-com``), so every server gets its
+        own integration instead of all of them sharing one baseline.
     :param endpoint: streamable-HTTP endpoint URL - the edge key host. Detected
         from the transport when omitted.
     :param server_kind: force the server kind; detected from the transport when
@@ -173,6 +178,11 @@ def instrument_mcp_client(
         # `ttlMs` / `cacheScope` as last seen on a `tools/list` result.
         "catalog_cache": None,
         "refetching": False,
+        # Identity from the `initialize` RESULT, observed by our own wrapper. The
+        # 1.x `mcp` line keeps only the server's capabilities after the handshake -
+        # it discards serverInfo - so this is the only place its name can come from
+        # (Datadog's MCP integration reads it the same way). `_meta` still wins.
+        "handshake": McpServerIdentity(),
     }
 
     session_ref = weakref.ref(session)
@@ -200,6 +210,27 @@ def instrument_mcp_client(
                 observed.version = seen.version
             if seen.protocol_version is not None:
                 observed.protocol_version = seen.protocol_version
+        except Exception:
+            pass  # capture-side only - never disturb the app
+
+    def absorb_handshake(result: Any) -> None:
+        """Absorb the ``initialize`` result's serverInfo / protocolVersion / capabilities."""
+        try:
+            handshake: McpServerIdentity = state["handshake"]
+            info = get_field(result, "serverInfo")
+            name = get_field(info, "name") if info is not None else None
+            version = get_field(info, "version") if info is not None else None
+            if isinstance(name, str) and name:
+                handshake.name = name
+            if isinstance(version, str) and version:
+                handshake.version = version
+            proto = get_field(result, "protocolVersion")
+            if isinstance(proto, str) and proto:
+                handshake.protocol_version = proto
+            tools = get_field(get_field(result, "capabilities"), "tools")
+            list_changed = get_field(tools, "listChanged") if tools is not None else None
+            if isinstance(list_changed, bool):
+                handshake.list_changed = list_changed
         except Exception:
             pass  # capture-side only - never disturb the app
 
@@ -233,6 +264,16 @@ def instrument_mcp_client(
                 identity.list_changed = list_changed
         except Exception:
             pass  # capture-side only - never disturb the app
+        # The handshake we observed ourselves fills what the accessors did not keep.
+        handshake: McpServerIdentity = state["handshake"]
+        if identity.name is None:
+            identity.name = handshake.name
+        if identity.version is None:
+            identity.version = handshake.version
+        if identity.protocol_version is None:
+            identity.protocol_version = handshake.protocol_version
+        if identity.list_changed is None:
+            identity.list_changed = handshake.list_changed
         # `_meta` wins: it is per-result and current, where the accessors are a
         # snapshot of a handshake that may not have happened at all.
         observed: McpServerIdentity = state["observed_server"]
@@ -246,18 +287,33 @@ def instrument_mcp_client(
 
     def edge() -> tuple[McpServerIdentity, Any]:
         identity = server_identity()
-        return identity, resolve_mcp_edge(
+        resolved = resolve_mcp_edge(
             endpoint=endpoint,
             server_kind=server_kind,
             transport=_transport_of(session),
             server_name=identity.name,
+            tag=_tag_of_session(session),
         )
+        if resolved.edge_class == EDGE_CLASS_UNKNOWN:
+            warn_once(
+                "mcp-unknown-edge",
+                f"[flanj] could not tell whether MCP server '{resolved.peer_host}' is remote or "
+                f"local: its transport was opened before flanj was loaded. Its calls are recorded "
+                f"without bodies until you load flanj first (import flanj.register, or call "
+                f"flanj.start(), before opening MCP transports) or pass endpoint= / server_kind= "
+                f"to instrument_mcp_client.",
+            )
+        return identity, resolved
+
+    def integration_for(e: Any) -> str:
+        return integration if integration else integration_for_host(e.peer_host) or UNKNOWN_INTEGRATION
 
     # ---- JSON-RPC id observation ---------------------------------------------
 
     def observe_sent_message(message: Any) -> None:
         """THIS session's observer: remember its client-generated tools/call ids."""
         try:
+            message = _unwrap_jsonrpc(message)
             method = _get(message, "method")
             request_id = _get(message, "id")
             params = _get(message, "params")
@@ -280,23 +336,24 @@ def instrument_mcp_client(
         id, which is an OPTIONAL attribute - we never fail a call over it.
         """
         try:
-            dispatcher = _get(session, "_dispatcher")
-            if dispatcher is None or not callable(getattr(dispatcher, "_write", None)):
+            seam = _outgoing_seam(session)
+            if seam is None:
                 return
-            registry = getattr(dispatcher, _SEND_OBSERVERS, None)
+            owner, method_name = seam
+            registry = getattr(owner, _SEND_OBSERVERS, None)
             if registry is None:
                 registry = _SendObserverRegistry()
-                setattr(dispatcher, _SEND_OBSERVERS, registry)
-                original_write = dispatcher._write
+                setattr(owner, _SEND_OBSERVERS, registry)
+                original_send = getattr(owner, method_name)
 
-                async def wrapped_write(message: Any, *args: Any, **kwargs: Any) -> Any:
+                async def observed_send(message: Any, *args: Any, **kwargs: Any) -> Any:
                     try:
                         registry.deliver(message)
                     except Exception:
                         pass  # observation only
-                    return await original_write(message, *args, **kwargs)
+                    return await original_send(message, *args, **kwargs)
 
-                dispatcher._write = wrapped_write
+                setattr(owner, method_name, observed_send)
             if not any(ref() is session for ref, _ in registry.observers):
                 registry.observers.append((session_ref, observe_sent_message))
         except Exception:
@@ -348,12 +405,19 @@ def instrument_mcp_client(
         if on_snapshot is not None:
             on_snapshot(snap)
 
-    def capture_call(tool_name: str, args: Any, result: Any, is_error: bool, started: float) -> None:
+    def capture_call(
+        tool_name: str,
+        args: Any,
+        result: Any,
+        is_error: bool,
+        started: float,
+        error_code: int | None = None,
+    ) -> None:
         try:
             identity, e = edge()
             sink_call(
                 assemble_mcp_call(
-                    integration=integration,
+                    integration=integration_for(e),
                     peer_host=e.peer_host,
                     edge_class=e.edge_class,
                     server_kind=e.server_kind,
@@ -366,6 +430,7 @@ def instrument_mcp_client(
                     protocol_version=identity.protocol_version,
                     session_id=_session_id_of(session),
                     client_request_id=claim_client_request_id(tool_name),
+                    error_code=error_code,
                     duration_ms=max(0, round((time.monotonic() - started) * 1000)),
                     body_cap_bytes=body_cap_bytes,
                 )
@@ -380,13 +445,14 @@ def instrument_mcp_client(
             identity, e = edge()
             sink_snapshot(
                 assemble_contract_snapshot(
-                    integration=integration,
+                    integration=integration_for(e),
                     peer_host=e.peer_host,
                     edge_class=e.edge_class,
                     server_kind=e.server_kind,
                     server=identity,
                     tools=tools,
                     cache=state["catalog_cache"],
+                    server_command=_server_command(e, _tag_of_session(session)),
                 )
             )
         except Exception as exc:
@@ -435,6 +501,19 @@ def instrument_mcp_client(
 
     # ---- the two wrapped coroutines -----------------------------------------
 
+    original_initialize = getattr(session, "initialize", None)
+    if callable(original_initialize):
+
+        async def initialize(*args: Any, **kwargs: Any) -> Any:
+            # No except clause at all: every exception, cancellation included,
+            # propagates exactly as it would uninstrumented. Only a successful
+            # handshake is read, and reading it is synchronous.
+            result = await original_initialize(*args, **kwargs)
+            absorb_handshake(result)
+            return result
+
+        _install(session, "initialize", initialize, original_initialize)
+
     original_list_tools = getattr(session, "list_tools", None)
     if callable(original_list_tools):
 
@@ -475,10 +554,11 @@ def instrument_mcp_client(
                 # anyway (both derive from BaseException); this clause exists so the
                 # next reader cannot widen that one by accident.
                 raise
-            except Exception:
+            except Exception as exc:
                 # The call happened and failed: record it (no response body), and
-                # re-raise untouched.
-                capture_call(tool_name, tool_args, None, True, started)
+                # re-raise untouched. A request the server REJECTED carries its
+                # JSON-RPC code (`flanj.mcp.error.code`), as in the TypeScript SDK.
+                capture_call(tool_name, tool_args, None, True, started, _jsonrpc_code_of(exc))
                 raise
             else:
                 # Identity rides every result now - learn it before resolving the edge.
@@ -594,6 +674,102 @@ def _transport_of(session: Any) -> Any:
             if value is not None:
                 return value
     return None
+
+
+def _tag_of_session(session: Any) -> TransportTag | None:
+    """The transport tag on the streams this session was built with, if any."""
+    holders = [session, _get(session, "_dispatcher")]
+    for holder in holders:
+        if holder is None:
+            continue
+        for name in ("_write_stream", "_read_stream"):
+            tag = tag_of(_get(holder, name))
+            if tag is not None:
+                return tag
+    return None
+
+
+def _server_command(e: Any, tag: TransportTag | None) -> str | None:
+    """``flanj.mcp.server.command`` for a stdio edge whose launch flanj saw."""
+    if e.server_kind != "stdio" or tag is None or not tag.command:
+        return None
+    return launch_command_attribute(tag.command[0], tag.command[1:])
+
+
+#: The protocol-error classes of the two `mcp` lines: 2.x `MCPError`, 1.x `McpError`.
+#: Matched by NAME along the MRO, as the TypeScript SDK does, so neither line is
+#: imported and a subclass still counts.
+_PROTOCOL_ERROR_NAMES = frozenset(("MCPError", "McpError"))
+
+
+def _jsonrpc_code_of(exc: BaseException) -> int | None:
+    """The JSON-RPC ``error.code`` of a REJECTED request, or None.
+
+    Only protocol errors carry one; a transport failure, a timeout or anything else
+    does not. 2.x puts the code on the exception, 1.x on ``exc.error``.
+    """
+    try:
+        if not any(klass.__name__ in _PROTOCOL_ERROR_NAMES for klass in type(exc).__mro__):
+            return None
+        code = getattr(exc, "code", None)
+        if code is None:
+            code = getattr(getattr(exc, "error", None), "code", None)
+        if isinstance(code, int) and not isinstance(code, bool):
+            return code
+    except Exception:
+        pass
+    return None
+
+
+def _outgoing_seam(session: Any) -> tuple[Any, str] | None:
+    """Where this session's outgoing JSON-RPC messages pass, as (object, method).
+
+    ``mcp`` 2.x writes through ``session._dispatcher._write(message)``; the 1.x line
+    writes ``SessionMessage`` objects to ``session._write_stream.send(...)``. Both are
+    private, so both are feature-detected; with neither, no id is reported.
+    """
+    dispatcher = _get(session, "_dispatcher")
+    if dispatcher is not None and callable(getattr(dispatcher, "_write", None)):
+        return dispatcher, "_write"
+    stream = _get(session, "_write_stream")
+    if stream is not None and callable(getattr(stream, "send", None)):
+        return stream, "send"
+    return None
+
+
+def _unwrap_jsonrpc(message: Any) -> Any:
+    """Peel ``SessionMessage`` and ``JSONRPCMessage`` wrappers down to the request."""
+    for attr in ("message", "root"):
+        inner = _get(message, attr)
+        if inner is not None and not isinstance(inner, (str, int, float, bool)):
+            message = inner
+    return message
+
+
+#: The integration id when none is configured and the edge key derives to nothing
+#: (a server whose name has no ASCII letter or digit).
+UNKNOWN_INTEGRATION = "unknown-integration"
+
+
+def integration_for_host(host: str) -> str:
+    """The collector's own rule for deriving an integration id from a host.
+
+    Byte-identical to ``integrationForHost`` in the collector
+    (``extension/flanjui/contracts_upload.go``): ASCII letters lowercased, digits
+    kept, everything else a dash, runs of dashes collapsed, dashes trimmed.
+    """
+    out = []
+    for ch in host:
+        if "a" <= ch <= "z" or "0" <= ch <= "9":
+            out.append(ch)
+        elif "A" <= ch <= "Z":
+            out.append(chr(ord(ch) + 32))
+        else:
+            out.append("-")
+    slug = "".join(out)
+    while "--" in slug:
+        slug = slug.replace("--", "-")
+    return slug.strip("-")
 
 
 def _session_id_of(session: Any) -> str | None:

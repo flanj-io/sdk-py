@@ -89,10 +89,25 @@ if __name__ == "__main__":
     mcp.run()
 PY
 cat > "$WORK/drive.py" <<'PY'
+# flanj FIRST - before anything imports an MCP transport opener. `from x import y`
+# binds the original function, and flanj can only see transports it wrapped.
+import flanj
+
+class _NoExport:  # this smoke checks capture, not export; keep stderr clean
+    def on_emit(self, record): pass
+    emit = on_emit
+    def shutdown(self): pass
+    def force_flush(self, timeout_millis=30000): return True
+
+# The rule the README states: load flanj BEFORE opening any MCP transport, so it can
+# see where each server is. (Skip this line and the session is `unknown`: recorded,
+# but without bodies - which is what this smoke caught when that rule was new.)
+flanj.start(processor=_NoExport())
+from flanj import instrument_mcp_client
+
 import asyncio, sys
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
-from flanj import instrument_mcp_client
 
 async def main() -> int:
     captured, snapshots = [], []
@@ -134,5 +149,26 @@ async def main() -> int:
 raise SystemExit(asyncio.run(main()))
 PY
 "$WORK/venv/bin/python" "$WORK/drive.py"
+
+say "The zero-code entry: import flanj.register, then an app that never calls flanj"
+cat > "$WORK/zero_code.py" <<'PY'
+import flanj.register  # noqa: F401  - the one line a user adds, first
+import asyncio, sys
+from mcp import ClientSession, StdioServerParameters
+from mcp.client.stdio import stdio_client
+
+async def main() -> int:
+    async with stdio_client(StdioServerParameters(command=sys.executable, args=["server.py"])) as (r, w):
+        async with ClientSession(r, w) as s:
+            await s.initialize()
+            await s.call_tool("get_balance", {"account_id": "acct_1"})
+            assert getattr(s, "__flanj_mcp_instrumented__", False), "the session was not auto-instrumented"
+    return 0
+
+raise SystemExit(asyncio.run(main()))
+PY
+"$WORK/venv/bin/python" "$WORK/zero_code.py" 2> "$WORK/zero_code.err" || { cat "$WORK/zero_code.err"; fail "the zero-code entry failed"; }
+grep -q "capturing MCP client calls" "$WORK/zero_code.err" || { cat "$WORK/zero_code.err"; fail "no startup line from flanj.register"; }
+echo "flanj.register: session auto-instrumented, startup line printed once"
 
 printf '\n\033[32m==> SMOKE PASSED — the built artefact works for a stranger.\033[0m\n'

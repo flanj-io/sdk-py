@@ -10,9 +10,9 @@ from ..redaction import PatternId
 #: How the MCP server is reached, as far as the CLIENT can tell. The SDK
 #: instruments the client session, never a transport - this is derived from the
 #: session's own transport reference / config, not from sniffing.
-McpServerKind = str  # 'streamable-http' | 'stdio'
+McpServerKind = str  # 'streamable-http' | 'stdio' | 'unknown'
 
-EdgeClass = str  # 'external' | 'internal' | 'local-process'
+EdgeClass = str  # 'external' | 'internal' | 'local-process' | 'unknown'
 
 
 @dataclass
@@ -62,6 +62,9 @@ class McpCallMeta:
     #: CLIENT-GENERATED. It appears in the provider's logs only if they log it; it
     #: is never presented as a provider-issued id.
     client_request_id: str | None = None
+    #: The JSON-RPC ``error.code`` when the ``tools/call`` REQUEST itself was
+    #: rejected (``flanj.mcp.error.code``) - never for a result with ``isError``.
+    error_code: int | None = None
 
 
 @dataclass
@@ -106,3 +109,5 @@ class McpContractSnapshot:
     #: overstating it.
     catalog_ttl_ms: float | None = None
     catalog_cache_scope: str | None = None
+    #: stdio only: ``flanj.mcp.server.command`` (see :mod:`flanj.mcp.launch`).
+    server_command: str | None = None

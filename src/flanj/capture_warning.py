@@ -47,6 +47,28 @@ def warn_capture_failed(exc: BaseException, what: str) -> None:
 
 
 def _reset_for_tests() -> None:
-    """Test-only: forget that a warning was printed."""
+    """Test-only: forget that any warning was printed."""
     global _warned
     _warned = False
+    _warned_keys.clear()
+
+
+_warned_keys: set[str] = set()
+
+
+def warn_once(key: str, message: str) -> None:
+    """Print ``message`` once per ``key`` for the life of the process.
+
+    For conditions that are not failures but that silently reduce what is captured
+    (an MCP server whose transport flanj never saw). Same channel and same silencing
+    variable as :func:`warn_capture_failed`.
+    """
+    if key in _warned_keys:
+        return
+    _warned_keys.add(key)
+    if os.environ.get(SILENCE_ENV):
+        return
+    try:
+        print(message, file=sys.stderr)
+    except Exception:
+        pass

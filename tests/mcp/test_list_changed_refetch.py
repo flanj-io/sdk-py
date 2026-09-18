@@ -24,8 +24,13 @@ from flanj.mcp import instrument_mcp_client
 mcp = pytest.importorskip("mcp", reason="the official mcp package is a dev dependency")
 
 from mcp import ClientSession  # noqa: E402
-from mcp.client._memory import InMemoryTransport  # noqa: E402
-from mcp.server.mcpserver import Context, MCPServer  # noqa: E402
+
+from ._real import Server, memory_streams  # noqa: E402
+
+try:  # 2.x
+    from mcp.server.mcpserver import Context
+except ImportError:  # 1.x
+    from mcp.server.fastmcp import Context  # type: ignore[no-redef]
 
 pytestmark = pytest.mark.anyio
 
@@ -35,8 +40,8 @@ def anyio_backend() -> str:
     return "asyncio"
 
 
-def build_server() -> MCPServer:
-    server = MCPServer("acme-tools-mcp")
+def build_server() -> Any:
+    server = Server("acme-tools-mcp")
 
     @server.tool()
     def get_balance(account_id: str) -> dict[str, Any]:
@@ -67,7 +72,7 @@ async def snapshots_after_announcement(**instrument_kwargs: Any) -> list[Any]:
         if len(snapshots) >= 2:
             arrived.set()
 
-    async with InMemoryTransport(build_server()) as (read, write):
+    async with memory_streams(build_server()) as (read, write):
         async with ClientSession(read, write) as session:
             instrument_mcp_client(
                 session, integration="acme-tools", on_snapshot=on_snapshot, **instrument_kwargs
@@ -111,7 +116,9 @@ async def test_the_applications_own_message_handler_still_runs() -> None:
     seen: list[str] = []
 
     async def app_handler(message: Any) -> None:
-        method = getattr(message, "method", None)
+        # The 1.x line hands the handler a `ServerNotification` wrapper, with the
+        # method on `.root`; 2.x hands the notification itself.
+        method = getattr(message, "method", None) or getattr(getattr(message, "root", None), "method", None)
         if isinstance(method, str):
             seen.append(method)
 
@@ -123,7 +130,7 @@ async def test_the_applications_own_message_handler_still_runs() -> None:
         if len(snapshots) >= 2:
             arrived.set()
 
-    async with InMemoryTransport(build_server()) as (read, write):
+    async with memory_streams(build_server()) as (read, write):
         async with ClientSession(read, write, message_handler=app_handler) as session:
             instrument_mcp_client(session, integration="acme-tools", on_snapshot=on_snapshot)
             await session.initialize()
