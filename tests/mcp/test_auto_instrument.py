@@ -19,7 +19,6 @@ from flanj.mcp.auto import (
     register_mcp_auto_instrumentation,
     unregister_mcp_auto_instrumentation,
 )
-from flanj.mcp.instrument import integration_for_host
 
 from ._real import SERVER_NAME, write_server
 
@@ -58,8 +57,6 @@ async def test_a_session_nobody_instrumented_is_captured(tmp_path: Path) -> None
     call = captured[0]
     assert call.call.edge_class == "local-process", "auto path did not detect the stdio transport"
     assert call.mcp.server_name == SERVER_NAME
-    # No integration configured: each server gets its own, the collector's way.
-    assert call.call.integration == integration_for_host(SERVER_NAME) == "acme-tools-mcp"
 
 
 async def test_registering_twice_captures_each_call_once(tmp_path: Path) -> None:
@@ -107,7 +104,7 @@ async def test_the_trampoline_returns_the_tools_own_result_and_adds_no_suspensio
         pass
 
     captured: list[Any] = []
-    assert patch_client_session_class(Patched, integration="acme-tools", on_capture=captured.append)
+    assert patch_client_session_class(Patched, on_capture=captured.append)
     wrapped = Patched()
 
     async def ticks(coro_factory: Any) -> int:

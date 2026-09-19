@@ -22,7 +22,6 @@ class Correlation:
 
 @dataclass
 class CapturedCall:
-    integration: str
     direction: str  # 'client' | 'server'
     #: The OTHER end's host[:port] - egress: destination. The edge key.
     peer_host: str

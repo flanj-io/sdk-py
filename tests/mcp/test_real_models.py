@@ -51,7 +51,7 @@ def instrument(session: Any) -> tuple[list[Any], list[Any]]:
     calls: list[Any] = []
     snapshots: list[Any] = []
     instrument_mcp_client(
-        session, integration="acme-tools", on_capture=calls.append, on_snapshot=snapshots.append
+        session, on_capture=calls.append, on_snapshot=snapshots.append
     )
     return calls, snapshots
 

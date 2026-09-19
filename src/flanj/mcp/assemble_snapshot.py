@@ -22,7 +22,6 @@ from .types import EdgeClass, McpContractSnapshot, McpServerIdentity, McpServerK
 
 def assemble_contract_snapshot(
     *,
-    integration: str,
     peer_host: str,
     edge_class: EdgeClass,
     server_kind: McpServerKind,
@@ -57,7 +56,6 @@ def assemble_contract_snapshot(
     redaction = redact_detailed(json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
 
     return McpContractSnapshot(
-        integration=integration,
         peer_host=peer_host,
         edge_class=edge_class,
         server_kind=server_kind,

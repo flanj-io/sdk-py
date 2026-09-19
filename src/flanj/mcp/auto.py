@@ -79,9 +79,8 @@ def _trampoline(name: str, fn: Callable[..., Any], ensure: Callable[[Any], None]
 def register_mcp_auto_instrumentation(**options: Any) -> list[str]:
     """Patch every installed MCP client session class and transport opener.
 
-    ``options`` are :func:`instrument_mcp_client`'s. Leave ``integration`` unset to
-    give each server its own integration id, derived from its edge key. Returns
-    what was patched; an empty list means no ``mcp`` package is installed.
+    ``options`` are :func:`instrument_mcp_client`'s. Returns what was patched; an
+    empty list means no ``mcp`` package is installed.
     """
     patched = patch_transport_openers()
     for module_name, class_name in _SESSION_CLASSES:

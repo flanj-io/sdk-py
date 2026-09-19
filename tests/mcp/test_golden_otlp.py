@@ -45,7 +45,6 @@ def golden_attributes(filename: str) -> dict[str, Any]:
 
 def test_mcp_tool_call_record_matches_the_golden_record() -> None:
     captured = assemble_mcp_call(
-        integration="acme-payments",
         peer_host="mcp.acme.test",
         edge_class="external",
         server_kind="streamable-http",
@@ -76,7 +75,6 @@ def test_the_call_record_carries_no_http_status_code() -> None:
     `flanj.http.status_code: 0` would record a successful call as an error.
     """
     captured = assemble_mcp_call(
-        integration="acme-tools",
         peer_host="mcp.acme.test",
         edge_class="external",
         server_kind="streamable-http",
@@ -91,7 +89,6 @@ def test_the_call_record_carries_no_http_status_code() -> None:
 
 def test_contract_snapshot_record_matches_the_golden_record() -> None:
     snapshot = assemble_contract_snapshot(
-        integration="acme-payments",
         peer_host="mcp.acme.test",
         edge_class="external",
         server_kind="streamable-http",
@@ -123,7 +120,6 @@ def _golden_snapshot_tools() -> str:
 def test_a_tool_without_an_output_schema_keeps_none() -> None:
     """The honest "no output contract declared" state, never synthesized."""
     snapshot = assemble_contract_snapshot(
-        integration="acme-tools",
         peer_host="mcp.acme.test",
         edge_class="external",
         server_kind="streamable-http",
@@ -142,7 +138,6 @@ def test_the_snapshot_is_floor_redacted_before_it_is_emitted() -> None:
     description - the snapshot crosses the wire only as redacted text.
     """
     snapshot = assemble_contract_snapshot(
-        integration="acme-tools",
         peer_host="mcp.acme.test",
         edge_class="external",
         server_kind="streamable-http",

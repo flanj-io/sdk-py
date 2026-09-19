@@ -91,7 +91,6 @@ class McpContractSnapshot:
     with ToolDef wire keys ``name/description/inputSchema/outputSchema/annotations``.
     """
 
-    integration: str
     peer_host: str
     edge_class: EdgeClass
     server_kind: McpServerKind

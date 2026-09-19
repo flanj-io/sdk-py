@@ -84,8 +84,7 @@ To instrument every session without the zero-code entry, call
 
 | Option / variable | Default | Meaning |
 |---|---|---|
-| `FLANJ_INTEGRATION_ID` / `integration=` | one per server | Emitted as `flanj.integration`. Unset, each server gets its own id derived from its edge key (`mcp.acme.com` → `mcp-acme-com`), exactly as the collector derives one. |
-| `OTEL_SERVICE_NAME` / `service_name=` | `flanj-consumer` | `service.name` on exported records. |
+| `OTEL_SERVICE_NAME` / `service_name=` | the app's own name, else `flanj-sdk` | `service.name` on exported records. Precedence: explicit `service_name=`, then `OTEL_SERVICE_NAME`, then the running script or module's own name (`python -m myapp` → `myapp`; `python path/app.py` → `app`), then `flanj-sdk`. The collector derives each record's integration itself; this SDK never sends `flanj.integration`. |
 | `FLANJ_OTLP_ENDPOINT` / `otlp_endpoint=` | `http://localhost:4318/v1/logs` | The collector's logs endpoint. Then `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT`, then `OTEL_EXPORTER_OTLP_ENDPOINT` (+ `/v1/logs`). If an export fails, the first failure prints one line. |
 | `FLANJ_BODY_CAP_BYTES` / `body_cap_bytes=` | `16384` | Per-body capture cap. |
 | `endpoint=` / `server_kind=` | detected | Only for a session whose transport flanj could not see: the streamable-HTTP URL (its `host[:port]` is the edge key), or `"stdio"`. |

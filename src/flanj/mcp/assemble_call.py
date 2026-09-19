@@ -26,7 +26,6 @@ from .types import EdgeClass, McpCallMeta, McpCapturedCall, McpServerKind
 
 def assemble_mcp_call(
     *,
-    integration: str,
     peer_host: str,
     edge_class: EdgeClass,
     server_kind: McpServerKind,
@@ -51,7 +50,6 @@ def assemble_mcp_call(
     trace = trace_context_from_meta(result)
 
     call = assemble_captured_call(
-        integration=integration,
         direction="client",
         peer_host=peer_host,
         edge_class=edge_class,

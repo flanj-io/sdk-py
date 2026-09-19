@@ -115,7 +115,7 @@ async def main() -> int:
     async with stdio_client(params) as (read, write):
         async with ClientSession(read, write) as session:
             instrument_mcp_client(
-                session, integration="smoke", on_capture=captured.append, on_snapshot=snapshots.append
+                session, on_capture=captured.append, on_snapshot=snapshots.append
             )
             await session.initialize()
             listed = await session.list_tools()

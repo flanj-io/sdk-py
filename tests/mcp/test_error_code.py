@@ -49,7 +49,7 @@ async def test_a_protocol_rejection_records_its_code_on_this_mcp_line() -> None:
     exc = _rejection()
     session = _Rejecting(exc)
     captured: list[Any] = []
-    instrument_mcp_client(session, integration="acme-tools", on_capture=captured.append)
+    instrument_mcp_client(session, on_capture=captured.append)
 
     with pytest.raises(type(exc)) as excinfo:
         await session.call_tool("create_refund", {"amount": "1200"})
@@ -61,7 +61,7 @@ async def test_a_protocol_rejection_records_its_code_on_this_mcp_line() -> None:
 async def test_a_transport_failure_has_no_code() -> None:
     session = _Rejecting(ConnectionError("reset"))
     captured: list[Any] = []
-    instrument_mcp_client(session, integration="acme-tools", on_capture=captured.append)
+    instrument_mcp_client(session, on_capture=captured.append)
     with pytest.raises(ConnectionError):
         await session.call_tool("get_balance")
     assert captured[0].mcp.error_code is None
@@ -80,7 +80,7 @@ async def test_an_is_error_result_is_not_a_rejection() -> None:
     captured: list[Any] = []
     async with memory_streams(server) as (read, write):
         async with ClientSession(read, write) as session:
-            instrument_mcp_client(session, integration="acme-tools", on_capture=captured.append)
+            instrument_mcp_client(session, on_capture=captured.append)
             await session.initialize()
             await session.call_tool("get_balance", {})  # missing arg: an isError RESULT
     assert captured[0].mcp.is_error is True
@@ -100,7 +100,7 @@ async def test_a_real_server_rejection_end_to_end() -> None:
     captured: list[Any] = []
     async with memory_streams(server) as (read, write):
         async with ClientSession(read, write) as session:
-            instrument_mcp_client(session, integration="acme-tools", on_capture=captured.append)
+            instrument_mcp_client(session, on_capture=captured.append)
             await session.initialize()
             with pytest.raises(type(_rejection())):
                 await session.call_tool("strict", {"x": "a"})

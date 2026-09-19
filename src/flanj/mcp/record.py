@@ -56,7 +56,6 @@ def build_contract_snapshot_attributes(snap: McpContractSnapshot) -> LogAttribut
         "flanj.direction": "client",
         "flanj.peer.host": snap.peer_host,
         "flanj.edge.class": snap.edge_class,
-        "flanj.integration": snap.integration,
         "flanj.mcp.contract_snapshot": snap.snapshot_json,
         "flanj.mcp.tool.count": snap.tool_count,
         "flanj.redaction.applied": snap.redaction_applied,

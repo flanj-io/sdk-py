@@ -37,7 +37,6 @@ def build_log_attributes(call: CapturedCall) -> LogAttributes:
         "flanj.peer.host": call.peer_host,
         "flanj.edge.class": call.edge_class,
         "flanj.capture.bodies": call.capture_bodies,
-        "flanj.integration": call.integration,
         "flanj.http.method": call.method,
         "flanj.http.route": call.route,
         "flanj.http.target": call.target,
