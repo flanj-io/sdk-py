@@ -4,9 +4,7 @@ Since 2026-09-19 the collector derives every record's integration at ingest
 (CONTRACTS section 2) and ignores anything the SDK sends, so ``flanj.integration``
 is never emitted and nothing here accepts an id to emit it with. This is a plain
 removal - the package is not on PyPI - so the honest check is that the
-keyword-only parameter is gone and Python itself refuses it. Built via ``**kwargs``
-so this file carries no literal trace of the retired keyword (a repo-wide grep for
-it is part of this change's own acceptance check).
+keyword-only parameter is gone and Python itself refuses it.
 """
 
 from __future__ import annotations
