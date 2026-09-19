@@ -1,4 +1,4 @@
-"""MCP capture types (v0.5 spec section 4.B)."""
+"""MCP capture types."""
 
 from __future__ import annotations
 

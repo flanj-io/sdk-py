@@ -13,10 +13,10 @@ source-available dependencies, prefer Apache/MIT/BSD/ISC/PSF).
 **MCP only, and that is the product, not a stage of one.** There is no HTTP body capture here:
 Python has no `node:http` choke point to patch the way the TypeScript SDK does, and an agent
 application has MCP traffic to watch rather than a REST integration. Do not add HTTP capture without
-a ruling — it is a scope decision, not an implementation gap.
+an explicit scope decision — it is not an implementation gap.
 
-Everything public says **Early — MCP only**, never *Supported*, until the `org-app-py` lane is green
-in the `e2e` harness (the promotion rule in `docs/mvp-roadmap.md`).
+Everything public says **Early — MCP only**, never *Supported*, until the Python end-to-end lane is green
+in the integration harness.
 
 ## Role in the system
 
@@ -67,11 +67,11 @@ src/flanj/
     validators/            # the hardened validators that DECIDE (email, iban, phone, ip)
     recognizers/           # the locators (pan, email, iban, phone, ssn, cvv, token, ip)
     scalar.py, text_path.py, redactor.py, enhancer.py, props.py, base64_scan.py, ...
-contracts/                 # vendored from the canonical e2e/contracts (do not hand-edit)
+contracts/                 # vendored from the canonical contract (do not hand-edit)
 scripts/smoke-pack.sh      # a stranger's first run: build -> fresh venv -> real MCP server
 docs/CONCEPTS.md           # the public engineering overview (mirrors flanj-io/sdk's)
 src/flanj/mcp/CLAUDE.md    # the MCP instrumentation, file by file, with each TypeScript twin
-tests/test_readme.py       # pins the README's public claims (positioning-2026-09.md)
+tests/test_readme.py       # pins the README's public claims
 .github/                   # CODEOWNERS, CI, issue/PR templates, dependabot — mirror flanj-io/sdk's
 ```
 
@@ -98,7 +98,7 @@ tests/test_readme.py       # pins the README's public claims (positioning-2026-0
 Wire formats are pinned in `contracts/` (vendored; schema_version **1**). The redaction floor is
 governed by `contracts/redaction-vectors.json` AND `contracts/redaction-fixtures.json` — **lead with
 those suites**; they are security-critical. Never change a wire format or a redaction behaviour here;
-change it in the canonical contract in `e2e/contracts/` first, re-vendor to every implementation, and
+change it in the canonical contract first, re-vendor to every implementation, and
 keep all the suites green. Do not hand-roll regex detection: locate candidates, let the composed
 validators decide (see `REDACTION.md`).
 
@@ -134,3 +134,13 @@ it red against that defect first.
 `src/flanj/mcp/CLAUDE.md` (the MCP instrumentation, with its TypeScript twin per file) and `REDACTION.md`.
 Community files mirror `flanj-io/sdk`'s: `SECURITY.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, the issue
 and PR templates, `dependabot.yml`. **When one of them changes in `sdk`, change it here too.**
+
+## This repo is public — write for a stranger
+
+Everything here, and everything written about it on GitHub (PR titles and descriptions, issues, comments),
+is read by people outside the project. Do not point them at things they cannot open: no non-public
+repositories or their PRs, no non-public design, planning or strategy documents, no labels for decisions
+taken elsewhere, and no attribution of a decision to a person. Say the rule and the reason in place, in the
+comment or doc that needs it. Cite only what a stranger can open: files in this repo, `contracts/CONTRACTS.md`,
+and other public repos and their PRs. A vendored file's header says "Vendored — do not edit here" and
+nothing more. A PR description stands alone: it links only to public repos.

@@ -1,4 +1,4 @@
-"""THE async contract. This is the file the brief exists for.
+"""THE async contract.
 
 The redaction vectors test strings in, strings out. They say nothing about
 ``call_tool`` being a coroutine, and no oracle will warn us: capture must not change

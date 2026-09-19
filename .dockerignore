@@ -1,4 +1,4 @@
-# The e2e harness passes this directory as a NAMED BuildKit context and the
+# The integration harness passes this directory as a NAMED BuildKit context and the
 # Dockerfile does `COPY --from=sdk-py . .`, so everything here is transferred and
 # then baked into the image. Without this file that includes the local virtualenv
 # and every built artefact — tens of megabytes of transfer on every lane, for files
