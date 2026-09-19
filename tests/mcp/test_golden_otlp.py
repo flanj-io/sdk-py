@@ -1,10 +1,10 @@
 """The WIRE seam: what this SDK emits must be exactly what the collector expects.
 
 ``contracts/golden-otlp-mcp-call.json`` and ``contracts/golden-otlp-mcp-snapshot.json``
-are vendored byte-identically from the canonical ``e2e/contracts/v1``, and the
+are vendored byte-identically from the canonical contract source, and the
 TypeScript SDK asserts against the same two files. These tests are how "the Python
 SDK speaks the same wire format" stops being a claim and becomes a check - the
-alternative is finding out in the nightly integration gate, a day after a merge.
+alternative is finding out in the integration gate, after a merge.
 
 The assertion is on the FULL attribute map, both directions: no expected attribute
 missing, and no unexpected attribute added. A test that only checks the keys it

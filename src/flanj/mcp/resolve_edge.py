@@ -1,4 +1,4 @@
-"""MCP edge identity (v0.5 spec section 4.B "Edge classification")."""
+"""MCP edge identity: the edge-classification rule for an MCP server (CONTRACTS section 2)."""
 
 from __future__ import annotations
 

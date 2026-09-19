@@ -16,7 +16,7 @@ The floor exists in **three** languages and must behave identically:
 
 **The fixtures are the contract, not any implementation.** `contracts/redaction-vectors.json`
 (18 cases) and `contracts/redaction-fixtures.json` (86 cases) are vendored byte-identically from
-the canonical `e2e/contracts/v1`, and every implementation runs the same two files.
+the canonical contract source, and every implementation runs the same two files.
 
 ---
 
@@ -144,7 +144,7 @@ validators are different implementations per language, so exotic inputs (quoted 
 BBAN with a letter where a country's format says digits) may be judged differently. The fixtures
 pin the real-world shapes; **add a fixture before relying on any new shape.**
 
-**Adding a case:** edit the canonical file in `e2e/contracts/v1/`, re-vendor byte-identically to
+**Adding a case:** edit the canonical contract source, re-vendor byte-identically to
 every implementation, make all the suites green.
 
 ---

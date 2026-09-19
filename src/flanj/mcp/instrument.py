@@ -1,4 +1,4 @@
-"""Wrap an MCP **client session** (v0.5 spec section 4.B).
+"""Wrap an MCP **client session**.
 
 Strictly out-of-band: the wrapper NEVER changes a call, a result, or an error -
 arguments pass through verbatim, results are returned untouched, exceptions

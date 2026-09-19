@@ -1,7 +1,7 @@
 # `contracts/` — vendored cross-repo contract (do not hand-edit)
 
-Everything in this directory is a **byte-identical copy** of the canonical contract that lives in
-the private `e2e` repo at `e2e/contracts/` (`CONTRACTS.md` + `v1/*`). It is the agreed language
+Everything in this directory is a **byte-identical copy** of the canonical contract
+(`CONTRACTS.md` plus the fixture files listed below). It is the agreed language
 between this SDK and the Flanj collector — the OTLP wire convention the SDK emits and the redaction
 floor it must enforce — not test data owned by another repo.
 
@@ -19,8 +19,9 @@ repo/CI artifact only.
 | `redaction-vectors.json` | scalar/recognizer-level redaction floor vectors | `tests/redaction/test_vectors.py` |
 | `redaction-fixtures.json` | the cross-language PARITY battery (Go and TypeScript run the same file) | `tests/redaction/test_fixtures.py`, `test_no_network.py` |
 
-## Changing anything
+## Changing anything (governance, versioning and vendoring)
 
-Edit the canonical file in `e2e/contracts/`, bump `schema_version` if the change is breaking,
-re-vendor byte-identically to `sdk/`, `sdk-py/`, `collector/` and `control-plane/`, and make every
-repo's suite green. See `e2e/contracts/README.md` (governance) and `REDACTION.md`.
+Wire-format and redaction changes originate in the canonical contract, not in
+this copy. Bump `schema_version` if the
+change is breaking, re-vendor byte-identically to every implementation, and make
+every repo's suite green. See `REDACTION.md`.
