@@ -27,6 +27,5 @@ class _Session:
 
 
 def test_instrument_mcp_client_rejects_the_retired_keyword() -> None:
-    retired_kwarg = {"integrat" + "ion": "acme-tools"}
-    with pytest.raises(TypeError):
-        instrument_mcp_client(_Session(), **retired_kwarg)
+    with pytest.raises(TypeError, match="unexpected keyword argument 'integration'"):
+        instrument_mcp_client(_Session(), integration="acme-tools")  # type: ignore[call-arg]

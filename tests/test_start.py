@@ -99,12 +99,9 @@ def test_the_apps_own_name_beats_the_default(monkeypatch: pytest.MonkeyPatch) ->
 
 def test_the_removed_keyword_is_rejected_by_the_signature() -> None:
     """Plain removal (2026-09-19): the collector derives the integration at
-    ingest now, so `start()` no longer takes one - built via `**kwargs` so this
-    file itself carries no literal trace of the retired keyword.
-    """
-    retired_kwarg = {"integrat" + "ion": "acme-tools"}
-    with pytest.raises(TypeError):
-        start(processor=_Recorder(), **retired_kwarg)
+    ingest now, so `start()` no longer takes one."""
+    with pytest.raises(TypeError, match="unexpected keyword argument 'integration'"):
+        start(processor=_Recorder(), integration="acme-tools")  # type: ignore[call-arg]
 
 
 def test_shutdown_is_idempotent() -> None:
