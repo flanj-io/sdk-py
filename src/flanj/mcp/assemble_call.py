@@ -140,7 +140,7 @@ def _plain(value: Any) -> Any:
 
 
 def _response_body(result: Any, cap: int) -> tuple[str, bool, str | None]:
-    """Response body per spec section 4.B.
+    """Response body.
 
     ``structuredContent`` when present (JSON), else the ``content[]`` text items
     joined with newlines (text - the floor's text path still parses-then-traverses

@@ -1,7 +1,7 @@
 """Shared fixture loading for the contract suites.
 
-``contracts/`` is a byte-identical vendored copy of the canonical contract in the
-private ``e2e`` repo. The files - not this implementation - are the contract.
+``contracts/`` is a byte-identical vendored copy of the canonical contract.
+The files - not this implementation - are the contract.
 """
 
 from __future__ import annotations

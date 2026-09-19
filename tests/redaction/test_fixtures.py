@@ -1,7 +1,7 @@
 """THE cross-language PARITY suite.
 
 ``contracts/redaction-fixtures.json`` (vendored from the canonical
-``e2e/contracts/v1``) is run by this suite AND by the TypeScript package's and the
+contract source) is run by this suite AND by the TypeScript package's and the
 Go collector's; all three must produce these exact results. This file is the
 contract, not the code.
 

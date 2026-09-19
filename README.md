@@ -149,7 +149,7 @@ locked by a test rather than asserted in prose (`tests/mcp/test_async_transparen
 ## Status
 
 **Early — MCP only.** Not *Supported*: a language is called supported only once the whole loop runs on
-it end to end in our own e2e harness, with that lane's assertions green. Until then it says early,
+it end to end in our own integration harness, with that suite's assertions green. Until then it says early,
 here and everywhere else.
 
 **Languages.** Node / TypeScript — **supported**: [`@flanj/sdk`](https://github.com/flanj-io/sdk), HTTP

@@ -1,9 +1,8 @@
 """The README's public claims, pinned.
 
-`positioning-2026-09.md` (the canonical source for public copy) rules what a README's
-first paragraph carries, retired a lead line everywhere on 2026-09-17, and says repos
-pin that line's absence. `flanj-io/sdk` pins its README the same way
-(`test/readme.spec.ts`).
+The retired lead line must not appear anywhere in the README, and the first
+paragraph must carry the current headline and standfirst. `flanj-io/sdk` pins
+its README the same way (`test/readme.spec.ts`).
 """
 
 from __future__ import annotations
@@ -26,7 +25,7 @@ def test_the_first_paragraph_is_the_headline_and_the_standfirst() -> None:
 
 
 def test_it_says_early_and_never_claims_supported_for_python() -> None:
-    """The promotion rule: *Supported* only once the language's e2e lane is green."""
+    """The promotion rule: *Supported* only once the language's end-to-end integration suite is green."""
     assert "Early — MCP only" in FIRST_SCREEN
     assert "Python — **early**" in README
     assert "Python — **supported**" not in README
