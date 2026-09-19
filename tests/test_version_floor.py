@@ -89,7 +89,7 @@ def test_instrumenting_on_an_unsupported_runtime_refuses_before_it_wraps(
     monkeypatch.setattr(sys, "version_info", (SUPPORTED_PYTHON[0], SUPPORTED_PYTHON[1] - 1, 0, "final", 0))
 
     with pytest.raises(RuntimeError):
-        instrument_mcp_client(session, integration="acme-tools")
+        instrument_mcp_client(session)
 
     # Identity comparison would not work here: attribute access on a bound method
     # builds a fresh object every time. What the wrapper actually does is SHADOW the

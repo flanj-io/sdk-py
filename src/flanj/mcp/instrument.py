@@ -122,7 +122,6 @@ class _SendObserverRegistry:
 def instrument_mcp_client(
     session: Any,
     *,
-    integration: str | None = None,
     endpoint: str | None = None,
     server_kind: McpServerKind | None = None,
     body_cap_bytes: int = DEFAULT_BODY_CAP_BYTES,
@@ -133,10 +132,6 @@ def instrument_mcp_client(
 ) -> Any:
     """Instrument ``session`` in place and return it.
 
-    :param integration: integration id emitted as ``flanj.integration``. When
-        omitted it is derived from the edge key exactly as the collector derives one
-        from a host (``mcp.acme.com`` -> ``mcp-acme-com``), so every server gets its
-        own integration instead of all of them sharing one baseline.
     :param endpoint: streamable-HTTP endpoint URL - the edge key host. Detected
         from the transport when omitted.
     :param server_kind: force the server kind; detected from the transport when
@@ -305,9 +300,6 @@ def instrument_mcp_client(
             )
         return identity, resolved
 
-    def integration_for(e: Any) -> str:
-        return integration if integration else integration_for_host(e.peer_host) or UNKNOWN_INTEGRATION
-
     # ---- JSON-RPC id observation ---------------------------------------------
 
     def observe_sent_message(message: Any) -> None:
@@ -417,7 +409,6 @@ def instrument_mcp_client(
             identity, e = edge()
             sink_call(
                 assemble_mcp_call(
-                    integration=integration_for(e),
                     peer_host=e.peer_host,
                     edge_class=e.edge_class,
                     server_kind=e.server_kind,
@@ -445,7 +436,6 @@ def instrument_mcp_client(
             identity, e = edge()
             sink_snapshot(
                 assemble_contract_snapshot(
-                    integration=integration_for(e),
                     peer_host=e.peer_host,
                     edge_class=e.edge_class,
                     server_kind=e.server_kind,
@@ -744,32 +734,6 @@ def _unwrap_jsonrpc(message: Any) -> Any:
         if inner is not None and not isinstance(inner, (str, int, float, bool)):
             message = inner
     return message
-
-
-#: The integration id when none is configured and the edge key derives to nothing
-#: (a server whose name has no ASCII letter or digit).
-UNKNOWN_INTEGRATION = "unknown-integration"
-
-
-def integration_for_host(host: str) -> str:
-    """The collector's own rule for deriving an integration id from a host.
-
-    Byte-identical to ``integrationForHost`` in the collector
-    (``extension/flanjui/contracts_upload.go``): ASCII letters lowercased, digits
-    kept, everything else a dash, runs of dashes collapsed, dashes trimmed.
-    """
-    out = []
-    for ch in host:
-        if "a" <= ch <= "z" or "0" <= ch <= "9":
-            out.append(ch)
-        elif "A" <= ch <= "Z":
-            out.append(chr(ord(ch) + 32))
-        else:
-            out.append("-")
-    slug = "".join(out)
-    while "--" in slug:
-        slug = slug.replace("--", "-")
-    return slug.strip("-")
 
 
 def _session_id_of(session: Any) -> str | None:

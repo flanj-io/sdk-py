@@ -75,7 +75,7 @@ async def snapshots_after_announcement(**instrument_kwargs: Any) -> list[Any]:
     async with memory_streams(build_server()) as (read, write):
         async with ClientSession(read, write) as session:
             instrument_mcp_client(
-                session, integration="acme-tools", on_snapshot=on_snapshot, **instrument_kwargs
+                session, on_snapshot=on_snapshot, **instrument_kwargs
             )
             await session.initialize()
             await session.list_tools()  # snapshot 1: the app's own list
@@ -132,7 +132,7 @@ async def test_the_applications_own_message_handler_still_runs() -> None:
 
     async with memory_streams(build_server()) as (read, write):
         async with ClientSession(read, write, message_handler=app_handler) as session:
-            instrument_mcp_client(session, integration="acme-tools", on_snapshot=on_snapshot)
+            instrument_mcp_client(session, on_snapshot=on_snapshot)
             await session.initialize()
             await session.list_tools()
             await session.call_tool("publish_v2", {})

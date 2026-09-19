@@ -27,7 +27,6 @@ from .redaction import (
 
 def assemble_captured_call(
     *,
-    integration: str,
     direction: str,
     peer_host: str,
     edge_class: str,
@@ -75,7 +74,6 @@ def assemble_captured_call(
             redaction_fields.append(entry)
 
     return CapturedCall(
-        integration=integration,
         direction=direction,
         peer_host=peer_host,
         peer_addr=peer_addr,

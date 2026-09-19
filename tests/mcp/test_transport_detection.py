@@ -56,7 +56,7 @@ async def test_a_remote_http_server_is_placed_by_its_host(patched: Any, tmp_path
     opener = getattr(sh, "streamable_http_client", None) or sh.streamablehttp_client
     with http_server(tmp_path) as url:
         async with opener(url) as streams:
-            captured = await _one_call(streams[0], streams[1], integration="acme-tools")
+            captured = await _one_call(streams[0], streams[1])
 
     host = url.split("/")[2]
     assert captured.call.peer_host == host, "keyed by server name instead of its host"
@@ -72,7 +72,7 @@ async def test_a_stdio_server_is_a_local_process_keyed_by_its_name(patched: Any,
 
     params = stdio.StdioServerParameters(command=sys.executable, args=[str(write_server(tmp_path))])
     async with stdio.stdio_client(params) as (read, write):
-        captured = await _one_call(read, write, integration="acme-tools")
+        captured = await _one_call(read, write)
 
     assert captured.call.edge_class == "local-process"
     assert captured.call.peer_host == SERVER_NAME, "the stdio edge lost the server's identity"
@@ -83,7 +83,7 @@ async def test_a_transport_flanj_never_saw_is_unknown_without_bodies_and_says_so
     patched: Any, capsys: Any
 ) -> None:
     async with memory_streams(build_server()) as (read, write):
-        captured = await _one_call(read, write, integration="acme-tools")
+        captured = await _one_call(read, write)
 
     assert captured.call.edge_class == "unknown"
     assert captured.mcp.server_kind == "unknown"
@@ -103,7 +103,7 @@ async def test_an_opener_bound_before_flanj_loaded_is_not_seen(tmp_path: Path, c
     try:
         params = stdio.StdioServerParameters(command=sys.executable, args=[str(write_server(tmp_path))])
         async with early_bound(params) as (read, write):
-            captured = await _one_call(read, write, integration="acme-tools")
+            captured = await _one_call(read, write)
     finally:
         unpatch_transport_openers()
     assert captured.call.edge_class == "unknown"
@@ -113,7 +113,7 @@ async def test_an_opener_bound_before_flanj_loaded_is_not_seen(tmp_path: Path, c
 async def test_explicit_config_still_wins(patched: Any) -> None:
     async with memory_streams(build_server()) as (read, write):
         captured = await _one_call(
-            read, write, integration="acme-tools", endpoint="https://mcp.acme.com/mcp"
+            read, write, endpoint="https://mcp.acme.com/mcp"
         )
     assert captured.call.peer_host == "mcp.acme.com"
     assert captured.call.edge_class == "external"
