@@ -39,13 +39,12 @@ class _Recorder:
 
 
 def test_start_reads_the_same_environment_as_the_typescript_sdk(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("FLANJ_INTEGRATION_ID", "acme-tools")
     monkeypatch.setenv("OTEL_SERVICE_NAME", "my-agent")
     monkeypatch.setenv("FLANJ_OTLP_ENDPOINT", "http://collector:4318")
     monkeypatch.setenv("FLANJ_BODY_CAP_BYTES", "4096")
     handle = start(processor=_Recorder())
     try:
-        assert handle.integration == "acme-tools"
+        assert handle.service_name == "my-agent"
         assert handle.endpoint == "http://collector:4318/v1/logs"
         assert handle.body_cap_bytes == 4096
         resource = dict(handle.logger_provider.resource.attributes)
@@ -55,17 +54,54 @@ def test_start_reads_the_same_environment_as_the_typescript_sdk(monkeypatch: pyt
 
 
 def test_start_defaults_match_the_typescript_sdk(monkeypatch: pytest.MonkeyPatch) -> None:
-    for key in ("FLANJ_INTEGRATION_ID", "OTEL_SERVICE_NAME", "FLANJ_OTLP_ENDPOINT", "FLANJ_BODY_CAP_BYTES",
+    for key in ("OTEL_SERVICE_NAME", "FLANJ_OTLP_ENDPOINT", "FLANJ_BODY_CAP_BYTES",
                 "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT", "OTEL_EXPORTER_OTLP_ENDPOINT"):
         monkeypatch.delenv(key, raising=False)
+    monkeypatch.setattr(sys.modules["flanj.start"], "_app_name", lambda main: None)
     handle = start(processor=_Recorder())
     try:
-        assert handle.integration is None, "unset means one integration per server, not a shared id"
+        assert handle.service_name == "flanj-sdk", "with no app name resolvable, the default is flanj-sdk"
         assert handle.endpoint == "http://localhost:4318/v1/logs"
         assert handle.body_cap_bytes == 16384
-        assert dict(handle.logger_provider.resource.attributes)["service.name"] == "flanj-consumer"
+        assert dict(handle.logger_provider.resource.attributes)["service.name"] == "flanj-sdk"
     finally:
         handle.shutdown()
+
+
+def test_an_explicit_service_name_beats_the_env_var(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("OTEL_SERVICE_NAME", "from-env")
+    handle = start(service_name="from-arg", processor=_Recorder())
+    try:
+        assert handle.service_name == "from-arg"
+    finally:
+        handle.shutdown()
+
+
+def test_the_env_var_beats_the_apps_own_name(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("OTEL_SERVICE_NAME", "from-env")
+    monkeypatch.setattr(sys.modules["flanj.start"], "_app_name", lambda main: "from-app")
+    handle = start(processor=_Recorder())
+    try:
+        assert handle.service_name == "from-env"
+    finally:
+        handle.shutdown()
+
+
+def test_the_apps_own_name_beats_the_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("OTEL_SERVICE_NAME", raising=False)
+    monkeypatch.setattr(sys.modules["flanj.start"], "_app_name", lambda main: "from-app")
+    handle = start(processor=_Recorder())
+    try:
+        assert handle.service_name == "from-app"
+    finally:
+        handle.shutdown()
+
+
+def test_the_removed_keyword_is_rejected_by_the_signature() -> None:
+    """Plain removal (2026-09-19): the collector derives the integration at
+    ingest now, so `start()` no longer takes one."""
+    with pytest.raises(TypeError, match="unexpected keyword argument 'integration'"):
+        start(processor=_Recorder(), integration="acme-tools")  # type: ignore[call-arg]
 
 
 def test_shutdown_is_idempotent() -> None:

@@ -54,7 +54,7 @@ class FakeSession:
 
 def instrument(session: Any, **kw: Any) -> list[Any]:
     captured: list[Any] = []
-    instrument_mcp_client(session, integration="acme-tools", on_capture=captured.append, **kw)
+    instrument_mcp_client(session, on_capture=captured.append, **kw)
     return captured
 
 
@@ -219,7 +219,7 @@ async def test_a_capture_failure_never_breaks_the_call() -> None:
     def exploding_sink(_: Any) -> None:
         raise RuntimeError("sink is broken")
 
-    instrument_mcp_client(session, integration="acme-tools", on_capture=exploding_sink)
+    instrument_mcp_client(session, on_capture=exploding_sink)
     result = await session.call_tool("get_balance")
     assert result is session.result, "a broken capture sink must not surface to the app"
 
@@ -262,7 +262,7 @@ async def test_the_first_capture_failure_warns_once_on_stderr(capsys: Any) -> No
     def exploding_sink(_: Any) -> None:
         raise RuntimeError("sink is broken")
 
-    instrument_mcp_client(session, integration="acme-tools", on_capture=exploding_sink)
+    instrument_mcp_client(session, on_capture=exploding_sink)
 
     for _ in range(3):
         assert await session.call_tool("get_balance") is session.result
@@ -282,7 +282,7 @@ async def test_the_warning_can_be_silenced(monkeypatch: Any, capsys: Any) -> Non
 
     session = FakeSession()
     instrument_mcp_client(
-        session, integration="acme-tools", on_capture=lambda _: (_ for _ in ()).throw(RuntimeError("x"))
+        session, on_capture=lambda _: (_ for _ in ()).throw(RuntimeError("x"))
     )
     await session.call_tool("get_balance")
 

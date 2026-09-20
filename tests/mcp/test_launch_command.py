@@ -79,7 +79,7 @@ async def _snapshot(streams: Any) -> Any:
 
     snapshots: list[Any] = []
     async with ClientSession(streams[0], streams[1]) as session:
-        instrument_mcp_client(session, integration="acme-tools", on_snapshot=snapshots.append)
+        instrument_mcp_client(session, on_snapshot=snapshots.append)
         await session.initialize()
         await session.list_tools()
     return snapshots[0]

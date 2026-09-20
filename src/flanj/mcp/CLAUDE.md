@@ -56,6 +56,7 @@ CONTRACTS §2, never a guess.
 
 ## Wiring
 
-`instrument_mcp_client(session, integration=..., endpoint=None, server_kind=None, logger=None,
-on_capture=None, on_snapshot=None, refetch_on_list_changed=True, body_cap_bytes=16384)` — pass an OTel
-logger (`flanj.otlp_logger()` or your own provider's) or the sinks.
+`instrument_mcp_client(session, endpoint=None, server_kind=None, logger=None, on_capture=None,
+on_snapshot=None, refetch_on_list_changed=True, body_cap_bytes=16384)` — pass an OTel logger
+(`flanj.otlp_logger()` or your own provider's) or the sinks. The collector derives every record's
+integration at ingest (CONTRACTS section 2); this SDK never sends `flanj.integration`.

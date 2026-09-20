@@ -51,7 +51,7 @@ def exported() -> tuple[Any, Any]:
 async def test_a_tool_call_reaches_the_exporter_as_a_flanj_record(exported: Any) -> None:
     logger, exporter = exported
     session = FakeSession()
-    instrument_mcp_client(session, integration="acme-tools", logger=logger)
+    instrument_mcp_client(session, logger=logger)
 
     await session.call_tool("get_balance", {"account_id": "acct_1"})
 
@@ -63,7 +63,7 @@ async def test_a_tool_call_reaches_the_exporter_as_a_flanj_record(exported: Any)
     assert attrs["flanj.record.type"] == "call"
     assert attrs["flanj.transport"] == "mcp"
     assert attrs["flanj.mcp.tool.name"] == "get_balance"
-    assert attrs["flanj.integration"] == "acme-tools"
+    assert "flanj.integration" not in attrs, "the collector derives integration at ingest now"
     assert attrs["flanj.peer.host"] == "mcp.acme.test"
     assert attrs["flanj.edge.class"] == "external"
     assert "flanj.http.status_code" not in attrs
@@ -78,7 +78,7 @@ async def test_a_tool_call_reaches_the_exporter_as_a_flanj_record(exported: Any)
 async def test_a_tools_list_reaches_the_exporter_as_a_contract_snapshot(exported: Any) -> None:
     logger, exporter = exported
     session = FakeSession()
-    instrument_mcp_client(session, integration="acme-tools", logger=logger)
+    instrument_mcp_client(session, logger=logger)
 
     await session.list_tools()
 
@@ -100,7 +100,7 @@ async def test_every_attribute_value_is_an_otlp_scalar(exported: Any) -> None:
     """
     logger, exporter = exported
     session = FakeSession()
-    instrument_mcp_client(session, integration="acme-tools", logger=logger)
+    instrument_mcp_client(session, logger=logger)
 
     await session.call_tool("get_balance", {"account_id": "acct_1"})
 

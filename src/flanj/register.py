@@ -13,10 +13,9 @@ in the contract (CONTRACTS section 2).
 Load it before anything opens an MCP transport - the same rule as Datadog's
 ``import ddtrace.auto`` - or the SDK cannot tell which servers are remote.
 
-Environment: ``FLANJ_INTEGRATION_ID`` (else one integration per server, derived
-from its host or name), ``OTEL_SERVICE_NAME``, ``FLANJ_OTLP_ENDPOINT`` /
-``OTEL_EXPORTER_OTLP_*``, ``FLANJ_BODY_CAP_BYTES``; ``FLANJ_QUIET=1`` silences
-the one startup line.
+Environment: ``OTEL_SERVICE_NAME`` (else the app's own name, else ``flanj-sdk``),
+``FLANJ_OTLP_ENDPOINT`` / ``OTEL_EXPORTER_OTLP_*``, ``FLANJ_BODY_CAP_BYTES``;
+``FLANJ_QUIET=1`` silences the one startup line.
 """
 
 from __future__ import annotations
@@ -32,7 +31,6 @@ from .version import __version__
 handle: FlanjHandle = start()
 flush_on_exit(handle)
 patched = register_mcp_auto_instrumentation(
-    integration=handle.integration,
     logger=handle.logger,
     body_cap_bytes=handle.body_cap_bytes,
 )
@@ -43,9 +41,8 @@ if os.environ.get("FLANJ_QUIET") != "1":
         if patched
         else "loaded, but no MCP client package is installed (pip install mcp)"
     )
-    integration = handle.integration or "one per server"
     print(
-        f"[flanj] flanj {__version__} {what} -> {handle.endpoint} (integration={integration}). "
+        f"[flanj] flanj {__version__} {what} -> {handle.endpoint} (service={handle.service_name}). "
         f"Set FLANJ_QUIET=1 to silence this line.",
         file=sys.stderr,
     )

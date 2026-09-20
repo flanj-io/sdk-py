@@ -37,7 +37,7 @@ async def _capture(tmp: Path) -> Any:
         captured: list[Any] = []
         async with stdio.stdio_client(params) as (read, write):
             async with ClientSession(read, write) as session:
-                instrument_mcp_client(session, integration="acme-tools", on_capture=captured.append)
+                instrument_mcp_client(session, on_capture=captured.append)
                 await session.initialize()
                 await session.call_tool("get_balance", {"account_id": "acct_1"})
         return captured[0]
