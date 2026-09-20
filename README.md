@@ -28,9 +28,12 @@ it. See [REDACTION.md](REDACTION.md) for the floor and how it is held identical 
 ## Quick start
 
 Needs **Python 3.10+** and a running Flanj collector, started with the collector README's
-[Run it on a laptop](https://github.com/flanj-io/collector#run-it-on-a-laptop) block. Python 3.10 is the floor of the
-official `mcp` package this SDK instruments, so there is no supported MCP client below it; an older runtime
-is refused with one sentence rather than failing somewhere inside a capture path.
+[Run it on a laptop](https://github.com/flanj-io/collector#run-it-on-a-laptop) block. Use that command as
+written: the collector's UI binds container loopback by design, so it is reached through the small sidecar
+that block includes, and a plain `docker run -p 5335:5335` publishes nothing.
+Python 3.10 is the floor of the official `mcp` package this SDK instruments, so there is no supported MCP
+client below it; an older runtime is refused with one sentence rather than failing somewhere inside a
+capture path.
 
 ```bash
 pip install flanj
@@ -45,9 +48,24 @@ Make this the **first line** of your program — before anything imports `mcp`:
 import flanj.register  # noqa: F401
 ```
 
-That is the whole integration. Every MCP client session your program opens afterwards is captured, redacted
-and exported, and each server is placed on its own edge. It is the counterpart of the TypeScript SDK's
-`node -r @flanj/sdk/register`, and prints one line on startup (`FLANJ_QUIET=1` silences it).
+That is the whole integration; no other source change. It starts the OTLP pipeline, flushes on exit and
+auto-instruments every MCP client session your program opens afterwards, placing each server on its own
+edge. It prints one line naming the endpoint and the resolved service name (`FLANJ_QUIET=1` silences it).
+It is the counterpart of the TypeScript SDK's `node -r @flanj/sdk/register`.
+
+**Verify** — after your agent has made at least one tool call, and assuming the collector was started with
+the [Run it on a laptop](https://github.com/flanj-io/collector#run-it-on-a-laptop) command including its UI
+sidecar:
+
+```bash
+curl -s http://127.0.0.1:5335/api/health
+```
+
+then open <http://127.0.0.1:5335> and look at the **Traffic** tab: your tool call should be there, redacted.
+
+If that `curl` answers `Failed to connect`, the SDK is not what failed: the collector's UI is loopback-only
+inside its container and nothing is forwarding to it. Re-run the collector with that block's sidecar. Ingest
+on `:4318` is a separate, ordinary published port and works either way.
 
 ### Load flanj first
 
@@ -58,9 +76,47 @@ never sees those transports. The same rule applies to Datadog's `import ddtrace.
 
 A session whose transport flanj never saw is not guessed at: its edge is **`unknown`**, its calls are recorded
 **without bodies** (it might be an internal server, whose bodies are never read), and flanj says so once on
-stderr, naming the fix.
+stderr, naming the fix. `unknown` is the one behaviour this SDK has that the TypeScript SDK does not; a
+JavaScript MCP client keeps its transport, so it can always place a server.
 
-### Instrumenting a session yourself
+### MCP quick start
+
+Nothing is configured per server. With the zero-code entry loaded, an ordinary session is already captured:
+
+```python
+import flanj.register  # noqa: F401  — first line, before `mcp` is imported
+
+from mcp import ClientSession
+from mcp.client.streamable_http import streamable_http_client
+
+async with streamable_http_client("https://mcp.acme.com/mcp") as (read, write):
+    async with ClientSession(read, write) as session:
+        await session.initialize()
+        await session.list_tools()                                  # -> a contract snapshot
+        await session.call_tool("get_balance", {"account_id": "x"}) # -> a captured, redacted call
+```
+
+**For each `tools/call`:** the arguments as the request body; `structuredContent` — else the `content[]`
+text — as the response body; the outcome (`isError`); the server's identity from the result's `_meta`; and
+the JSON-RPC request id your client generated, labelled as client-generated. A call the server **rejected**
+(a JSON-RPC error rather than a result with `isError`) also records the error's code. A Tasks handle
+(`tasks/get`) is recorded as an envelope with **no body**, so nothing models the envelope as the tool's own
+output shape.
+
+**For each complete `tools/list`:** the server's own declared schemas, verbatim, never re-inferred. The
+catalogue is refetched and re-snapshotted on `notifications/tools/list_changed`
+(`refetch_on_list_changed`, on by default), so a server that changes its tools mid-session is caught when it
+does.
+
+**For a server your app launched over stdio:** how it was launched (`npx @stripe/mcp@0.2.1 …`) — the command
+and its arguments only, each floor-redacted, never the environment or the working directory.
+
+**Your service's name** is the only thing you configure, and it defaults to your app's own name
+(`python -m myapp` → `myapp`), then `flanj-sdk`. It travels as the OTLP resource `service.name`, and the
+collector shows it as a **Service** column beside the counterparty and as a Traffic filter. It names your
+own internal topology, so it stays on your collector: a service name is **never sent to the control plane**.
+
+### Instrumenting a client yourself
 
 ```python
 import flanj                        # still first
@@ -71,7 +127,7 @@ from mcp.client.streamable_http import streamable_http_client
 
 async with streamable_http_client("https://mcp.acme.com/mcp") as (read, write):
     async with ClientSession(read, write) as session:
-        handle.instrument(session)  # or flanj.instrument_mcp_client(session, logger=handle.logger)
+        handle.instrument(session)  # this handle's logger and body cap
         await session.initialize()
         # Use `session` exactly as before. Nothing about its behavior changes.
         result = await session.call_tool("get_balance", {"account_id": "acct_1"})
@@ -90,50 +146,52 @@ To instrument every session without the zero-code entry, call
 | `endpoint=` / `server_kind=` | detected | Only for a session whose transport flanj could not see: the streamable-HTTP URL (its `host[:port]` is the edge key), or `"stdio"`. |
 | `refetch_on_list_changed=` | `True` | On `notifications/tools/list_changed`, refetch the catalogue and re-snapshot. Same default as the TypeScript SDK. |
 | `FLANJ_QUIET` | unset | `1` silences the `flanj.register` startup line. |
-| `FLANJ_SILENCE_CAPTURE_WARNINGS` | unset | Silences the one-time lines for a failed capture or an `unknown` edge. |
+| `FLANJ_SILENCE_CAPTURE_WARNINGS` | unset | Silences the one-time lines for a failed capture or an `unknown` edge. Same variable, same lines, in the TypeScript SDK. |
 
 Records are flushed on normal exit and on SIGTERM / SIGINT (`flanj.flush_on_exit(handle)`, which
 `flanj.register` installs), bounded to five seconds, after which your own signal handling runs as before.
 
-**Edges.** A server reached over a URL is `external` or `internal` by its host, the same rule the collector
-uses; internal servers are metadata-only. A server your app launched over stdio is `local-process`, keyed
-by the name it reports, and its bodies are captured: it usually wraps someone else's API. Its snapshot also
-records **how it was launched** (`npx @stripe/mcp@0.2.1 …`): the command and arguments only, each
-floor-redacted, never the environment or working directory. A server flanj could not place is `unknown`,
-metadata-only.
-
 ## What is captured
 
 **Captured:** every `tools/call` and `tools/list` on an instrumented session, over any transport the
-official client supports (streamable HTTP, stdio). For each call: the arguments as the request body,
-`structuredContent` (else the `content[]` text) as the response body, the outcome (`isError`), the server's
-identity from the result's `_meta`, and the JSON-RPC id your client generated, labeled as client-generated.
-A call the server **rejected** (a JSON-RPC error rather than a result with `isError`) also records the
-error's code.
-For each **complete** `tools/list`: the server's own declared schemas, verbatim, never re-inferred.
+official client supports (streamable HTTP, stdio). The fields are listed under
+[MCP quick start](#mcp-quick-start).
 
 **Not captured:**
 
 - **HTTP request/response bodies.** Python has no `node:http` choke point to patch the way the TypeScript SDK
-  does. Per-library HTTP capture (`requests`/`httpx`/`aiohttp`) is not started.
+  does. Per-library HTTP capture (`requests`/`httpx`/`aiohttp`) is not started. This is the one intended
+  difference between the two SDKs.
 - **`tasks/get` payloads.** A Tasks handle is recorded as an envelope with no body, so nothing models the
   envelope as the tool's output shape.
 
-Bodies are captured on external and `local-process` edges; an MCP server on an internal address is
-metadata-only. Every captured body is redacted in your process before it is exported; see
-[REDACTION.md](REDACTION.md) for what is redacted and how.
+**Edges.** A server reached over a URL is `external` or `internal` by its host, the same rule the collector
+uses; internal servers are metadata-only. A server your app launched over stdio is `local-process`, keyed
+by the name it reports, and its bodies are captured: it usually wraps someone else's API. A server flanj
+could not place is `unknown`, metadata-only. Every captured body is redacted in your process before it is
+exported; see [REDACTION.md](REDACTION.md) for what is redacted and how.
+
+**When capture itself fails** it stops collecting and says so — once, on stderr, naming what broke and that
+your application is unaffected. Silence is the failure mode this SDK exists to remove, and a collector
+showing nothing looks exactly like an agent making no calls. `FLANJ_SILENCE_CAPTURE_WARNINGS=1` turns the
+line off once you have read it.
 
 ### MCP clients: the contract arrives with the traffic
 
 REST drift detection needs a spec somebody published and kept accurate. MCP servers publish their contract
 on every single call — `tools/list` **is** the spec. So the collector has the baseline from the first call
-your agent makes, for every MCP server it touches, with nothing to configure.
+your agent makes, for every MCP server it touches, with nothing to configure and nothing to upload: the
+observed `tools/list` is forwarded as a contract snapshot, versioned by content hash, and every later
+`tools/call` is checked against it.
 
 That is not a convenience difference. "Nobody publishes an accurate OpenAPI spec" is the strongest practical
 objection to drift detection on REST, and it does not apply to MCP at all. It matters most for agents, the most
 drift-fragile API consumers anyone has built: an agent reads a tool's description to decide what to do, so a
 description that changes under it changes what it does, and nothing anywhere logs an error. For this SDK
 that is not one feature among several — it is the whole product.
+
+There is nothing to configure per server: the collector derives each MCP server's integration from its peer
+host (or, over stdio, the name it reports), so two servers never share a baseline.
 
 ### It stays out of the way
 
@@ -153,7 +211,8 @@ it end to end in our own integration harness, with that suite's assertions green
 here and everywhere else.
 
 **Languages.** Node / TypeScript — **supported**: [`@flanj/sdk`](https://github.com/flanj-io/sdk), HTTP
-egress and ingress plus the MCP client. Python — **early**: this package, MCP client only.
+egress and ingress plus the MCP client. Python — **early**: this package, MCP client only. Apart from HTTP
+capture the two are the same SDK: same defaults, same records, same entry points.
 
 **Where this stops, said out loud.** No HTTP body capture (see *What is captured*). A call the collector
 cannot check against a contract is captured and reported as **not validated**, never as conforming.
