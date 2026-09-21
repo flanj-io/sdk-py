@@ -6,7 +6,14 @@ from typing import Final
 
 # Plain assignment, no annotation: the build backend reads this line with a
 # regex and an annotated target does not match it.
-__version__ = "0.1.0.dev0"
+#
+# The first real release. Bumped from the "0.1.0.dev0" placeholder deliberately, not
+# automatically: this number is a one-line call for whoever cuts the release, not a
+# mechanical increment. 0.1.0 keeps this SDK's own numbering (it is not tied to the
+# TypeScript SDK's, which is ahead at 0.2.0 — matching that instead is a legitimate
+# alternative). Either way it must stay greater than any version already registered
+# for this package and PEP 440-valid; see CONTRIBUTING.md's Releasing section.
+__version__ = "0.1.0"
 
 #: `flanj.capture.version` - the WIRE contract version (CONTRACTS section 2),
 #: deliberately NOT the package version. It changes only when the record shape

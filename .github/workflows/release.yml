@@ -1,0 +1,204 @@
+name: release
+
+# Publishes `flanj` to PyPI on a `v*` tag, using PyPI's Trusted Publishing (OpenID
+# Connect) — there is no API token in this repository, ever.
+#
+# ci.yml's `smoke` job is NOT this: it builds a wheel and installs it into a fresh
+# venv to prove the packaging is sound on every PR, then throws the artefact away.
+# This is the only thing in the repo that publishes.
+#
+# BEFORE YOU TAG: GitHub reads a tag's workflows from that tag's own tree — tag a
+# freshly fetched origin/main, then confirm a run actually started. A tag placed on
+# a stale commit either runs stale checks, or, if this file did not exist there yet,
+# runs nothing at all, silently. See CONTRIBUTING.md's Releasing section.
+#
+# One-time setup, repository owner only (this workflow cannot do it for you): on
+# pypi.org, "Your projects" -> flanj -> Manage -> Publishing -> Add a new publisher,
+# with:
+#   Owner:             flanj-io
+#   Repository name:   sdk-py
+#   Workflow name:     release.yml
+#   Environment name:  pypi
+# No secret to create or rotate — PyPI exchanges this run's OIDC token (requested by
+# `permissions: id-token: write`, below) for a short-lived upload credential scoped
+# to this one run.
+#
+# workflow_dispatch with dry_run: true (the default) runs every check up to, but not
+# including, the upload — the way to prove a change to this file, or a release
+# candidate, before it can cost a real publish.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Version to release, e.g. v0.1.0 (must match src/flanj/version.py)'
+        required: true
+      dry_run:
+        description: 'Build and verify only — do not publish'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build & verify
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.v.outputs.tag }}
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Full history: "the release commit must be on main" (below) walks it.
+          fetch-depth: 0
+
+      - name: Resolve the tag being released
+        id: v
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          tag="${INPUT_TAG:-${GITHUB_REF_NAME}}"
+          case "$tag" in
+            v[0-9]*.[0-9]*.[0-9]*) ;;
+            *) echo "::error::'$tag' is not a vMAJOR.MINOR.PATCH tag"; exit 1 ;;
+          esac
+          {
+            echo "tag=$tag"
+            echo "version=${tag#v}"
+          } >> "$GITHUB_OUTPUT"
+          echo "releasing $tag from ${GITHUB_SHA}"
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: The tag must match src/flanj/version.py
+        run: python3 scripts/check-release-tag.py "${{ steps.v.outputs.tag }}"
+
+      # Gated the same way the upload itself is (below): a workflow_dispatch dry run
+      # is expected to run from a branch that is NOT yet on main — that is the whole
+      # point of testing this workflow before merge. A real release, whether a tag
+      # push or an explicit dry_run:false dispatch, must not skip this.
+      - name: The release commit must be on main's history
+        if: github.event_name == 'push' || inputs.dry_run == false
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor "${GITHUB_SHA}" origin/main || {
+            echo "::error::${GITHUB_SHA} is not on origin/main — tag a freshly fetched origin/main, never a stale checkout or a feature branch"
+            exit 1
+          }
+          echo "${GITHUB_SHA} is on origin/main"
+
+      - name: Build the wheel and sdist
+        run: |
+          rm -rf dist
+          uv build --out-dir dist
+          ls -la dist
+
+      - name: Exactly one wheel and one sdist
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          wheels=(dist/*.whl)
+          sdists=(dist/*.tar.gz)
+          [ "${#wheels[@]}" -eq 1 ] || { echo "::error::expected exactly one wheel, found ${#wheels[@]}: ${wheels[*]}"; exit 1; }
+          [ "${#sdists[@]}" -eq 1 ] || { echo "::error::expected exactly one sdist, found ${#sdists[@]}: ${sdists[*]}"; exit 1; }
+          echo "wheel: ${wheels[0]}"
+          echo "sdist: ${sdists[0]}"
+
+      - name: twine check --strict
+        run: uvx twine check --strict dist/*
+
+      - name: The wheel ships the entry points and none of the repo's dev/CI artefacts
+        run: python3 scripts/check-wheel-contents.py dist/*.whl
+
+      # The check that matters: every check above can pass on a wheel that still
+      # fails to import for a stranger. Both the published floor (3.10) and the
+      # newest Python ci.yml tests (3.13) — a floor-only pass would miss a defect
+      # that only the newer interpreter's stdlib changes would surface, or vice versa.
+      - name: Install the wheel on the floor Python (3.10) and check the startup notice
+        env:
+          FLANJ_OTLP_ENDPOINT: http://flanj-collector.flanj:4318/v1/logs
+        run: bash scripts/verify-install.sh 3.10 "${{ steps.v.outputs.version }}" dist/*.whl
+
+      - name: Install the wheel on the newest CI Python (3.13) and check the startup notice
+        env:
+          FLANJ_OTLP_ENDPOINT: http://flanj-collector.flanj:4318/v1/logs
+        run: bash scripts/verify-install.sh 3.13 "${{ steps.v.outputs.version }}" dist/*.whl
+
+      # Before the upload, not after: a publish cannot be undone, and this is the
+      # only copy of exactly what a real release would send — dry run or not.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/*
+
+  publish:
+    name: publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    # Trusted Publishing binds to this environment (the owner's one-time pypi.org
+    # setup, above, names it "pypi"). It also lets the owner add manual-approval
+    # protection rules on pypi.org later without touching this file.
+    environment: pypi
+    permissions:
+      # The action's own guidance: never build in the job that holds id-token: write.
+      # This job only downloads what `build` already produced.
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          name: dist
+          path: dist
+
+      - name: Upload to PyPI
+        if: github.event_name == 'push' || inputs.dry_run == false
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/
+          print-hash: true
+
+      - name: Upload skipped (dry run)
+        if: github.event_name != 'push' && inputs.dry_run != false
+        run: |
+          echo "dry_run=true — nothing was uploaded. The dists this run built are"
+          echo "attached to this workflow run as the 'dist' artifact."
+
+      # Everything below only runs once something was actually uploaded.
+      - name: The index must answer for the version just uploaded
+        if: github.event_name == 'push' || inputs.dry_run == false
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          set -euo pipefail
+          code=""
+          for _ in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "https://pypi.org/pypi/flanj/${VERSION}/json")
+            [ "$code" = "200" ] && break
+            sleep 10
+          done
+          [ "$code" = "200" ] || { echo "::error::pypi.org never answered 200 for flanj==${VERSION} (last status: $code)"; exit 1; }
+          echo "https://pypi.org/pypi/flanj/${VERSION}/json -> 200"
+
+      - uses: astral-sh/setup-uv@v5
+        if: github.event_name == 'push' || inputs.dry_run == false
+        with:
+          enable-cache: true
+
+      - name: Anonymous install from PyPI must match — floor Python
+        if: github.event_name == 'push' || inputs.dry_run == false
+        env:
+          FLANJ_OTLP_ENDPOINT: http://flanj-collector.flanj:4318/v1/logs
+        run: bash scripts/verify-install.sh 3.10 "${{ needs.build.outputs.version }}" pypi
+
+      - name: Anonymous install from PyPI must match — newest CI Python
+        if: github.event_name == 'push' || inputs.dry_run == false
+        env:
+          FLANJ_OTLP_ENDPOINT: http://flanj-collector.flanj:4318/v1/logs
+        run: bash scripts/verify-install.sh 3.13 "${{ needs.build.outputs.version }}" pypi
