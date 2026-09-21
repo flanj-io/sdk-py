@@ -60,6 +60,9 @@ def assemble_mcp_call(
         protocol="mcp:",
         host=peer_host,
         path=f"/{tool_name}",
+        # A tool name is opaque: a ``?`` or ``#`` in it is part of the name, never a
+        # query, so route = target = "/<tool.name>" for every name (CONTRACTS section 2).
+        opaque_path=True,
         status_code=0,
         req_content_type="application/json",
         res_content_type=res_content_type,

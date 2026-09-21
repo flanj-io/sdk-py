@@ -92,6 +92,15 @@ tests/test_readme.py       # pins the README's public claims
 5. **The floor does no I/O**, and that is checked three ways (sentinel, static import ban,
    module-graph audit). It is why the floor owns its Luhn and IBAN checks and why
    `flanj/__init__.py` is lazy.
+6. **`route` is the path; `target` is path+query** (CONTRACTS §2). `assemble_captured_call` redacts the
+   path+query ONCE and cuts that redacted text at the first `?` or `#` to get `route` — after
+   redaction, never before: the floor's verdict on a path segment can depend on the query beside it
+   (`/pay/cvv=123?x=1` is tokenised, the bare `/pay/cvv=123` is not), so a pre-cut path could show in
+   `route` a value `target` hid. A slice of `target` cannot. An empty path is `/`, never `""` (an
+   empty route is discarded downstream as not-a-call). MCP passes `opaque_path` — a tool name is not
+   a URL, so `route` = `target` = `"/<tool.name>"` whatever the name contains. No query string reaches
+   this assembler today (MCP is its only caller); the rule is here because the TypeScript SDK's
+   assembler applies the identical one — change both or neither. `tests/test_assemble_call.py`.
 
 ## Contract
 
