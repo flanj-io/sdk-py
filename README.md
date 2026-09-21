@@ -27,13 +27,12 @@ it. See [REDACTION.md](REDACTION.md) for the floor and how it is held identical 
 
 ## Quick start
 
-Needs **Python 3.10+** and a running Flanj collector, started with the collector README's
-[Run it on a laptop](https://github.com/flanj-io/collector#run-it-on-a-laptop) block. Use that command as
-written: the collector's UI binds container loopback by design, so it is reached through the small sidecar
-that block includes, and a plain `docker run -p 5335:5335` publishes nothing.
-Python 3.10 is the floor of the official `mcp` package this SDK instruments, so there is no supported MCP
-client below it; an older runtime is refused with one sentence rather than failing somewhere inside a
-capture path.
+Needs **Python 3.10+** and a running Flanj collector. The collector README's
+[Run it on Kubernetes](https://github.com/flanj-io/collector#run-it-on-kubernetes) section is the
+preferred way to deploy it; [Run it with Docker](https://github.com/flanj-io/collector#run-it-with-docker)
+is the other. Python 3.10 is the floor of the official `mcp` package this SDK instruments, so there is no
+supported MCP client below it; an older runtime is refused with one sentence rather than failing somewhere
+inside a capture path.
 
 ```bash
 pip install flanj
@@ -48,14 +47,38 @@ Make this the **first line** of your program — before anything imports `mcp`:
 import flanj.register  # noqa: F401
 ```
 
-That is the whole integration; no other source change. It starts the OTLP pipeline, flushes on exit and
+That is one line, and nothing else changes. It starts the OTLP pipeline, flushes on exit and
 auto-instruments every MCP client session your program opens afterwards, placing each server on its own
 edge. It prints one line naming the endpoint and the resolved service name (`FLANJ_QUIET=1` silences it).
 It is the counterpart of the TypeScript SDK's `node -r @flanj/sdk/register`.
 
-**Verify** — after your agent has made at least one tool call, and assuming the collector was started with
-the [Run it on a laptop](https://github.com/flanj-io/collector#run-it-on-a-laptop) command including its UI
-sidecar:
+If your collector is running with Docker, there is nothing to point it at: `http://localhost:4318/v1/logs`
+is this SDK's default `FLANJ_OTLP_ENDPOINT` already, and that is where that collector listens.
+
+### On Kubernetes
+
+The chart creates a front Service with a fixed name, so the one address that is right for everyone who
+installed with the [Run it on Kubernetes](https://github.com/flanj-io/collector#run-it-on-kubernetes)
+command is `http://flanj-collector.flanj:4318/v1/logs`. Set it on your **own workload**, not your shell:
+the SDK runs in the agent's pod, where `localhost` is not the collector.
+
+```yaml
+env:
+  - name: FLANJ_OTLP_ENDPOINT
+    value: http://flanj-collector.flanj:4318/v1/logs
+```
+
+The chart also renders a `ConfigMap/flanj-endpoint` for teams that would rather use `envFrom` than a
+literal value. A pod can only reference a ConfigMap in its own namespace, so the chart has to be told
+which namespaces to render it into — see the
+[chart README](https://github.com/flanj-io/collector/tree/main/charts/flanj-collector).
+
+**Verify** — after your agent has made at least one tool call. On Docker, `docker compose up -d` already
+starts the bridge that publishes the collector's UI at `127.0.0.1:5335`. On Kubernetes, forward it first:
+
+```bash
+kubectl -n flanj port-forward sts/flanj-flanj-collector-store 5335:5335
+```
 
 ```bash
 curl -s http://127.0.0.1:5335/api/health
@@ -63,9 +86,9 @@ curl -s http://127.0.0.1:5335/api/health
 
 then open <http://127.0.0.1:5335> and look at the **Traffic** tab: your tool call should be there, redacted.
 
-If that `curl` answers `Failed to connect`, the SDK is not what failed: the collector's UI is loopback-only
-inside its container and nothing is forwarding to it. Re-run the collector with that block's sidecar. Ingest
-on `:4318` is a separate, ordinary published port and works either way.
+If that `curl` answers `Failed to connect`: on Docker, confirm the compose stack is still up
+(`docker compose ps`); on Kubernetes, confirm the port-forward above is still running. Ingest on `:4318` is
+a separate, ordinary port either way.
 
 ### Load flanj first
 
