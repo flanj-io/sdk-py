@@ -62,6 +62,7 @@ def test_the_shared_cross_language_skeleton() -> None:
     assert headings == [
         "flanj — Flanj SDK for Python",
         "Quick start",
+        "On Kubernetes",
         "Load flanj first",  # language-specific: the TypeScript README has "ESM, CJS, and shutdown" here
         "MCP quick start",
         "Instrumenting a client yourself",
