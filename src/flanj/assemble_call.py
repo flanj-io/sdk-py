@@ -25,6 +25,26 @@ from .redaction import (
 )
 
 
+def _path_of(redacted_target: str) -> str:
+    """The path of an ALREADY-REDACTED path+query: everything before the first
+    ``?`` or ``#`` (RFC 3986 section 3.3). CONTRACTS section 2: ``route`` is the path,
+    ``target`` is path+query.
+
+    Cut AFTER redaction, never before. What the floor does with a path segment can
+    depend on the query beside it - ``/pay/cvv=123?x=1`` has the value tokenised,
+    the bare ``/pay/cvv=123`` does not - so redacting a pre-cut path could put a
+    value in ``route`` that ``target`` hid. Cutting the redacted text makes
+    ``route`` a prefix of ``target``: it can never show more. A redaction token
+    contains neither delimiter, so the cut cannot land inside one.
+
+    An empty path is ``/`` (RFC 3986 section 6.2.3), never ``""`` - a record with an
+    empty route is discarded downstream as not-a-call.
+    """
+    ends = [i for i in (redacted_target.find("?"), redacted_target.find("#")) if i != -1]
+    path = redacted_target[: min(ends)] if ends else redacted_target
+    return path or "/"
+
+
 def assemble_captured_call(
     *,
     direction: str,
@@ -50,7 +70,12 @@ def assemble_captured_call(
     capture_content_types: Sequence[str] = DEFAULT_CAPTURE_CONTENT_TYPES,
     header_allowlist: Sequence[str] = DEFAULT_HEADER_ALLOWLIST,
     body_cap_bytes: int = DEFAULT_BODY_CAP_BYTES,
+    opaque_path: bool = False,
 ) -> CapturedCall:
+    # ``path`` is path + query, as dialled: it becomes ``target`` whole, and ``route``
+    # up to the query. ``opaque_path`` says it is an opaque name rather than a URL
+    # path+query - MCP's ``/<tool.name>``, where a ``?`` or ``#`` is part of the name -
+    # so ``route`` is the whole redacted path.
     capture_req = capture_bodies and is_captureable_content_type(req_content_type, capture_content_types)
     capture_res = capture_bodies and is_captureable_content_type(res_content_type, capture_content_types)
 
@@ -80,7 +105,9 @@ def assemble_captured_call(
         edge_class=edge_class,
         capture_bodies=capture_bodies,
         method=method,
-        route=target.text,
+        # No redaction pass of its own: ``route`` is a slice of ``target``, so every
+        # token in it is already counted in ``patterns`` through ``target``.
+        route=target.text if opaque_path else _path_of(target.text),
         target=target.text,
         url_full=url.text,
         status_code=status_code,
