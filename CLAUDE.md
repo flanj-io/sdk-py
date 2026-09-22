@@ -32,6 +32,8 @@ evidence; redaction happens **here**, at the call site, before anything is attac
   `flanj/runtime.py`). **Change all three or none.** `tests/test_version_floor.py`.
 - `uv venv --python 3.10 && uv pip install -e ".[dev]"` · `pytest` · `ruff check .` · `mypy` ·
   `bash scripts/smoke-pack.sh`.
+- Releasing to PyPI: `.github/workflows/release.yml`, tag-triggered, Trusted Publishing (no token).
+  See CONTRIBUTING.md's Releasing section for the tag command and the `workflow_dispatch` dry run.
 - Runtime dependencies are deliberately few: `phonenumbers` (the phone validator) and the
   OpenTelemetry logs export path. `mcp` is a **dev** dependency only — it is feature-detected at
   runtime, never imported.
