@@ -85,7 +85,7 @@ executes every step above except the actual upload — same build, same tag/vers
 workflow, or a release candidate, can be proven before it can cost a real publish:
 
 ```bash
-gh workflow run release.yml -R flanj-io/sdk-py --ref <branch> -f tag=v0.1.0 -f dry_run=true
+gh workflow run release.yml -R flanj-io/sdk-py --ref <branch> -f tag=v0.2.0 -f dry_run=true
 ```
 
 Note: `workflow_dispatch` only works once the workflow file exists on `main` (or, for a run on another
