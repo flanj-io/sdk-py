@@ -30,7 +30,6 @@ def with_export_failure_warning(exporter: Any, endpoint: str, warn: WarnFn | Non
     """Wrap an OTel log exporter so its FIRST failed export prints one line."""
     from opentelemetry.sdk._logs import export as _otel_export
 
-    LogExportResult = _otel_export.LogExportResult
     # Renamed upstream (logs are not a stable signal yet): current releases warn
     # on `LogExporter` and will remove it; older ones have only that name.
     base: Any = getattr(_otel_export, "LogRecordExporter", None) or _otel_export.LogExporter
@@ -47,7 +46,11 @@ def with_export_failure_warning(exporter: Any, endpoint: str, warn: WarnFn | Non
             except Exception as exc:
                 self._warn(f"{type(exc).__name__}: {exc}")
                 raise
-            if result != LogExportResult.SUCCESS:
+            # By NAME, never by enum identity: opentelemetry 1.44 has the exporter
+            # return `LogRecordExportResult.SUCCESS` while the older `LogExportResult`
+            # class still exists beside it. Two Enum classes never compare equal, so
+            # an identity comparison called every successful export a failure.
+            if getattr(result, "name", None) != "SUCCESS":
                 self._warn("the exporter reported FAILURE (is the collector running at that address?)")
             return result
 

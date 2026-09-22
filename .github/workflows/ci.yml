@@ -41,6 +41,22 @@ jobs:
         run: uv run --no-project ruff check .
       - name: Types
         run: uv run --no-project mypy
+      # Third pass: the declared OpenTelemetry floor. The two passes above resolve
+      # the NEWEST opentelemetry release (the pins are `>=1.24` with no lockfile),
+      # which is what a fresh `pip install flanj` gets and where a renamed enum or
+      # class first shows up. This pass is the other end of that range, so a change
+      # that only works on a recent release cannot ship under a `>=1.24` promise.
+      # Last, because it downgrades the venv: `mypy` above must see the current
+      # types. Floor on floor only: opentelemetry 1.24 predates Python 3.13 and
+      # its protobuf 4.x dependency raises a 3.13 DeprecationWarning on import,
+      # which `filterwarnings = error` would turn into a failure about neither
+      # this SDK nor its floor.
+      - name: Test (opentelemetry floor 1.24)
+        if: matrix.python == '3.10'
+        run: >-
+          uv pip install "opentelemetry-api==1.24" "opentelemetry-sdk==1.24"
+          "opentelemetry-exporter-otlp-proto-http==1.24"
+          && uv run --no-project pytest -q
 
   smoke:
     name: stranger smoke (built artefact)
