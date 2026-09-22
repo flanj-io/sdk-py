@@ -40,8 +40,8 @@ inside a capture path.
 pip install flanj
 ```
 
-> **Not yet on PyPI.** Until it is, install from source:
-> `pip install git+https://github.com/flanj-io/sdk-py`
+> Needs Python 3.10+: on an older interpreter `pip` does not refuse, it silently installs the
+> unrelated `0.0.1` placeholder that once held the name.
 
 Make this the **first line** of your program — before anything imports `mcp`:
 

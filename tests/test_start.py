@@ -147,6 +147,67 @@ def test_a_successful_export_says_nothing() -> None:
     assert "e.g." not in message, "no hint when the path is right"
 
 
+def _serve(status: int) -> tuple[Any, str]:
+    """A one-endpoint HTTP server answering every POST with ``status``."""
+    import threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self) -> None:  # noqa: N802 - the http.server API
+            self.rfile.read(int(self.headers.get("Content-Length", "0")))
+            self.send_response(status)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+
+        def log_message(self, *args: Any) -> None:
+            pass
+
+    server = HTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    return server, f"http://127.0.0.1:{server.server_port}/v1/logs"
+
+
+def test_the_real_exporter_reporting_success_says_nothing() -> None:
+    """The REAL OTLP exporter's own result enum, not a stand-in.
+
+    opentelemetry 1.44 has the exporter return ``LogRecordExportResult.SUCCESS``
+    while the older ``LogExportResult`` class still exists alongside it. The two
+    are distinct ``Enum`` classes, so comparing by class identity found every
+    successful export unequal to "success" and warned about a FAILURE that never
+    happened - on every export, for every user of a fresh install.
+    """
+    from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
+
+    server, endpoint = _serve(200)
+    try:
+        lines: list[str] = []
+        real = OTLPLogExporter(endpoint=endpoint)
+        exporter = with_export_failure_warning(real, endpoint, warn=lines.append)
+        assert exporter.export([]).name == "SUCCESS", "the server said 200; the real exporter must agree"
+        assert lines == [], f"a successful export must not warn: {lines}"
+    finally:
+        exporter.shutdown()
+        server.shutdown()
+        server.server_close()
+
+
+def test_the_real_exporter_reporting_failure_still_warns() -> None:
+    """The mirror image: a 4xx is not retried, and the real FAILURE value warns."""
+    from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
+
+    server, endpoint = _serve(400)
+    try:
+        lines: list[str] = []
+        real = OTLPLogExporter(endpoint=endpoint)
+        exporter = with_export_failure_warning(real, endpoint, warn=lines.append)
+        assert exporter.export([]).name == "FAILURE"
+        assert len(lines) == 1 and "reported FAILURE" in lines[0]
+    finally:
+        exporter.shutdown()
+        server.shutdown()
+        server.server_close()
+
+
 def test_a_signal_flushes_first_then_behaves_exactly_as_before(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[str] = []
 

@@ -37,6 +37,16 @@ jobs:
       # the client's JSON-RPC ids on.
       - name: Test (mcp 1.x)
         run: uv pip install "mcp<2" && uv run --no-project pytest -q
+      # Third pass: the declared OpenTelemetry floor. The two passes above resolve
+      # the NEWEST opentelemetry release (the pins are `>=1.24` with no lockfile),
+      # which is what a fresh `pip install flanj` gets and where a renamed enum or
+      # class first shows up. This pass is the other end of that range, so a change
+      # that only works on a recent release cannot ship under a `>=1.24` promise.
+      - name: Test (opentelemetry floor 1.24)
+        run: >-
+          uv pip install "opentelemetry-api==1.24" "opentelemetry-sdk==1.24"
+          "opentelemetry-exporter-otlp-proto-http==1.24"
+          && uv run --no-project pytest -q
       - name: Lint
         run: uv run --no-project ruff check .
       - name: Types
