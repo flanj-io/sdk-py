@@ -9,11 +9,12 @@ from typing import Final
 #
 # The first real release. Bumped from the "0.1.0.dev0" placeholder deliberately, not
 # automatically: this number is a one-line call for whoever cuts the release, not a
-# mechanical increment. 0.1.0 keeps this SDK's own numbering (it is not tied to the
-# TypeScript SDK's, which is ahead at 0.2.0 — matching that instead is a legitimate
-# alternative). Either way it must stay greater than any version already registered
-# for this package and PEP 440-valid; see CONTRIBUTING.md's Releasing section.
-__version__ = "0.1.0"
+# mechanical increment. 0.2.0 matches the TypeScript SDK: apart from HTTP capture the
+# two are the same SDK - same defaults, same records, same entry points - so one
+# version number for both is the honest one, and a release note that names one
+# version is enough. It must stay greater than any version already registered for
+# this package and PEP 440-valid; see CONTRIBUTING.md's Releasing section.
+__version__ = "0.2.0"
 
 #: `flanj.capture.version` - the WIRE contract version (CONTRACTS section 2),
 #: deliberately NOT the package version. It changes only when the record shape
