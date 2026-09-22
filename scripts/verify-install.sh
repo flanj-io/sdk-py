@@ -30,7 +30,20 @@ uv venv --python "$PYVER" "$WORK/venv" >/dev/null
 
 if [ "$SOURCE" = "pypi" ]; then
   echo "installing flanj==$WANT_VERSION from PyPI, anonymously"
-  uv pip install --python "$WORK/venv/bin/python" -q "flanj==$WANT_VERSION"
+  # The index lags the upload: seconds after a publish the simple index can
+  # still answer without the new release ("no version of flanj==X"), and the
+  # first real release verification failed exactly there while the file was
+  # already served. Retry with a fresh index read; nothing else is retried.
+  attempt=1
+  until uv pip install --python "$WORK/venv/bin/python" -q --refresh "flanj==$WANT_VERSION"; do
+    if [ "$attempt" -ge 10 ]; then
+      echo "flanj==$WANT_VERSION is still not resolvable from PyPI after $attempt attempts" >&2
+      exit 1
+    fi
+    echo "  not on the index yet (attempt $attempt) — waiting 30s"
+    attempt=$((attempt + 1))
+    sleep 30
+  done
 else
   [ -f "$SOURCE" ] || { echo "::error::no such wheel: $SOURCE"; exit 1; }
   echo "installing $(basename "$SOURCE")"
