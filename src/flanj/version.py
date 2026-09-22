@@ -7,14 +7,15 @@ from typing import Final
 # Plain assignment, no annotation: the build backend reads this line with a
 # regex and an annotated target does not match it.
 #
-# The first real release. Bumped from the "0.1.0.dev0" placeholder deliberately, not
-# automatically: this number is a one-line call for whoever cuts the release, not a
-# mechanical increment. 0.2.0 matches the TypeScript SDK: apart from HTTP capture the
-# two are the same SDK - same defaults, same records, same entry points - so one
-# version number for both is the honest one, and a release note that names one
-# version is enough. It must stay greater than any version already registered for
-# this package and PEP 440-valid; see CONTRIBUTING.md's Releasing section.
-__version__ = "0.2.0"
+# Bumped by hand for each release, never mechanically: this number is a one-line
+# call for whoever cuts it. 0.2.1 is the first fix release after 0.2.0: the export
+# wrapper compared the exporter's result against the wrong Enum class under the
+# OpenTelemetry versions a fresh install resolves, and printed "export failed"
+# on every successful export. The TypeScript SDK numbers itself separately
+# (0.3.0 at the time of this release) — the wire contract below is what the two
+# share, not the package version. Must stay greater than any version already
+# registered for this package and PEP 440-valid; see CONTRIBUTING.md's Releasing section.
+__version__ = "0.2.1"
 
 #: `flanj.capture.version` - the WIRE contract version (CONTRACTS section 2),
 #: deliberately NOT the package version. It changes only when the record shape
