@@ -152,6 +152,14 @@ jobs:
       id-token: write
       contents: read
     steps:
+      # Read-only, and not what publishes: the artifact download below is what
+      # ships. This is here so the post-publish steps further down have
+      # scripts/verify-install.sh to run — without it they failed with "No such
+      # file or directory" on v0.2.0, after the upload itself had already
+      # succeeded (issue found the same day: this job never checked anything
+      # out, and nobody had reached the bottom of a real release before).
+      - uses: actions/checkout@v7
+
       - uses: actions/download-artifact@v7
         with:
           name: dist
