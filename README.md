@@ -14,6 +14,8 @@ Every call succeeded. That's why nothing caught it.
 [![ci](https://github.com/flanj-io/sdk-py/actions/workflows/ci.yml/badge.svg)](https://github.com/flanj-io/sdk-py/actions/workflows/ci.yml)
 [![python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
 
+[flanj.io](https://flanj.io)
+
 `flanj` instruments an MCP client session (`mcp.ClientSession`). It records the `tools/list` catalogue
 each MCP server hands your agent and the `tools/call` traffic that follows. It redacts sensitive data at the
 source, then exports the redacted records over OTLP to a Flanj collector. The collector checks every call
