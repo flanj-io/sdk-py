@@ -35,7 +35,7 @@ dependencies = [
   # property is that it does no I/O. Both of those checks are fixed arithmetic, so
   # they are owned instead - which is what the Go collector already does, and for
   # the same stated reason (collector/internal/redact/iban.go).
-  "phonenumbers>=8.13",
+  "phonenumbers>=9.0.39",
   # The OTLP logs export path.
   "opentelemetry-api>=1.24",
   "opentelemetry-sdk>=1.24",
