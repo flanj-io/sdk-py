@@ -23,8 +23,8 @@ jobs:
         # `requires-python` promises it, so it has to be exercised.
         python: ["3.10", "3.13"]
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
       - name: Install
@@ -62,8 +62,8 @@ jobs:
     name: stranger smoke (built artefact)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
       # Builds the wheel, installs THAT into a fresh venv with nothing of this repo on
       # the path, and drives a real MCP server over stdio. The test job above cannot
       # see a module left out of the wheel or a dependency declared only in `dev`.
@@ -74,7 +74,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Every commit is signed off
