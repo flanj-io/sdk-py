@@ -73,7 +73,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
           echo "releasing $tag from ${GITHUB_SHA}"
 
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
 
@@ -160,7 +160,7 @@ jobs:
       # out, and nobody had reached the bottom of a real release before).
       - uses: actions/checkout@v7
 
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           name: dist
           path: dist
@@ -194,7 +194,7 @@ jobs:
           [ "$code" = "200" ] || { echo "::error::pypi.org never answered 200 for flanj==${VERSION} (last status: $code)"; exit 1; }
           echo "https://pypi.org/pypi/flanj/${VERSION}/json -> 200"
 
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v7
         if: github.event_name == 'push' || inputs.dry_run == false
         with:
           enable-cache: true
